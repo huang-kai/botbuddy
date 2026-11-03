@@ -1,5 +1,7 @@
 # 文档目录
 
+- [BotBuddy / BotSkills 更名迁移](name-migration.md)：旧命令、数据目录、配置和安装兼容。
+
 新用户从[项目首页](../README.md)完成快速部署，再按需要阅读：
 
 | 分类 | 文档 | 内容 |
@@ -12,7 +14,7 @@
 | 使用 | [配置说明](configuration.md) | 模型、环境变量、配置与日志路径 |
 | 使用 | [技能管理](skill-management.md) | 安装、替换、配置、启用、禁用、删除 |
 | 开发 | [技能运行协议](skill-protocol.md) | SKILL.md、CLI、task/exclusive、进程生命周期和资源 |
-| 开发 | [安装向导协议](installation-protocol.md) | primebuddy.version、configure、路径和退出码 |
+| 开发 | [安装向导协议](installation-protocol.md) | botbuddy.version、configure、路径和退出码 |
 | 维护 | [升级与兼容](upgrades.md) | 独立升级、失败恢复、坏包与不兼容技能隔离 |
 | 维护 | [打包发布](packaging.md) | 组合包、独立包、随包清单、正式发行要求 |
 | 维护 | [发布验收记录](release-validation.md) | 按记录中的版本和日期查看自动化、安装验证及实机验收范围 |

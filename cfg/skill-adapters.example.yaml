@@ -1,5 +1,5 @@
 # Buddy 的可选宿主适配；技能本身只提供普通 CLI。
-# ~/.primebuddy/cfg/skill-adapters.yaml 可替换同名条目，null 禁用该适配。
+# ~/.botbuddy/cfg/skill-adapters.yaml 可替换同名条目，null 禁用该适配。
 # 新版 chengyu-chain 在自己的 cfg/pkg.yaml 声明模式和 CLI；此条仅兼容旧名安装。
 chengyu-jielong:
   configure: [main.py, --config, '{config}', --data-dir, '{data}', --runtime-dir, '{runtime}', configure]

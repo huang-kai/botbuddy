@@ -1,18 +1,20 @@
 # 配置与文件位置
 
+从 PrimeBuddy 升级请先阅读[更名迁移说明](name-migration.md)，继续沿用原安装目录和配置。
+
 默认安装目录如下。技能、配置和登录数据会在安装或配置后生成。
 
 ```text
-~/.primebuddy/
+~/.botbuddy/
 ├── main.py                  程序入口
 ├── README.md                使用说明
 ├── docs/                    分类使用说明与协议文档
 ├── CHANGELOG.md             版本更新记录
-├── release.json             当前框架版本及官方技能兼容清单
+├── release.json             当前框架版本及配套技能兼容清单
 ├── LICENSE                  MIT 开源协议
 ├── requirements.txt         框架 Python 依赖
-├── bin/                     primebuddy 命令和终端环境脚本
-├── src/primebuddy/           框架代码
+├── bin/                     botbuddy 命令和终端环境脚本
+├── src/botbuddy/           框架代码
 ├── cfg/
 │   ├── config.yaml          模型选择、运行目录和日志设置
 │   ├── providers.yaml       模型服务的 Host、Key 和候选模型
@@ -27,15 +29,15 @@
 └── scripts/                 安装和开发脚本
 ```
 
-日志默认保存在 `/var/log/primebuddy/primebuddy.log`。需要自定义安装位置时，使用 `source ./scripts/install.sh --home /你的安装目录`，下文的默认路径也应相应替换。
+日志默认保存在 `/var/log/botbuddy/botbuddy.log`。需要自定义安装位置时，使用 `source ./scripts/install.sh --home /你的安装目录`，下文的默认路径也应相应替换。
 
 日常配置主要修改这三个位置：
 
 | 想修改什么 | 文件 |
 | --- | --- |
-| 当前使用的模型、TTS 音色、日志设置 | `~/.primebuddy/cfg/config.yaml` |
-| 模型服务的 API Host、API Key、候选模型 | `~/.primebuddy/cfg/providers.yaml` |
-| 某个技能的业务设置 | `~/.primebuddy/cfg/skills/<name>/config.yaml`，也可运行 `skill configure` |
+| 当前使用的模型、TTS 音色、日志设置 | `~/.botbuddy/cfg/config.yaml` |
+| 模型服务的 API Host、API Key、候选模型 | `~/.botbuddy/cfg/providers.yaml` |
+| 某个技能的业务设置 | `~/.botbuddy/cfg/skills/<name>/config.yaml`，也可运行 `skill configure` |
 
 模型使用 `provider:model` 表示，例如：
 

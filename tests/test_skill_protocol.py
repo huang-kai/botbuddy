@@ -6,9 +6,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from primebuddy.config.storage import SetupError
-from primebuddy.skills.metadata import load_skill_metadata
-from primebuddy.skills.adapters import adapt_metadata
+from botbuddy.config.storage import SetupError
+from botbuddy.skills.metadata import load_skill_metadata
+from botbuddy.skills.adapters import adapt_metadata
 
 
 class SkillProtocolTests(unittest.TestCase):
@@ -22,14 +22,14 @@ class SkillProtocolTests(unittest.TestCase):
         self.options = {'version': 1, 'cli': {'configure': ['wizard.py', '--config', '{config}']}}
 
     def load(self):
-        (self.root / 'cfg/pkg.yaml').write_text(json.dumps({'primebuddy': self.options}))
+        (self.root / 'cfg/pkg.yaml').write_text(json.dumps({'botbuddy': self.options}))
         return load_skill_metadata(self.root)
 
     def test_custom_wizard_filename_is_supported(self):
         self.assertEqual(self.load()['cli']['configure'][0], 'wizard.py')
 
     def test_package_version_and_protocol_version_are_independent(self):
-        (self.root / 'cfg/pkg.yaml').write_text(json.dumps({'version': '2.3.4', 'primebuddy': self.options}))
+        (self.root / 'cfg/pkg.yaml').write_text(json.dumps({'version': '2.3.4', 'botbuddy': self.options}))
         data = load_skill_metadata(self.root)
         self.assertEqual(data['version'], '2.3.4')
         self.assertEqual(data['cli_version'], 1)
@@ -52,7 +52,7 @@ class SkillProtocolTests(unittest.TestCase):
         self.assertEqual(self.load()['name'], 'example')
 
     def test_package_contract_is_not_replaced_by_host_defaults(self):
-        with patch.dict(os.environ, PRIMEBUDDY_HOME=str(self.root / 'home')):
+        with patch.dict(os.environ, BOTBUDDY_HOME=str(self.root / 'home')):
             data = adapt_metadata(self.load(), self.root,
                                   {'example': {'configure': ['missing.py']}}, check_compatibility=False)
         self.assertEqual(data['configure'][0], 'wizard.py')
@@ -62,6 +62,6 @@ class SkillProtocolTests(unittest.TestCase):
         (home / 'cfg').mkdir(parents=True)
         (home / 'cfg/skill-adapters.yaml').write_text(json.dumps({'example': {'configure': ['wizard.py', 'custom']}}))
         (home / 'cfg/skill-adapters.yaml').chmod(0o600)
-        with patch.dict(os.environ, PRIMEBUDDY_HOME=str(home)):
+        with patch.dict(os.environ, BOTBUDDY_HOME=str(home)):
             data = adapt_metadata(self.load(), self.root, {}, check_compatibility=False)
         self.assertEqual(data['configure'], ['wizard.py', 'custom'])

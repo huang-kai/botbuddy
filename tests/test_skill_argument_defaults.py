@@ -9,10 +9,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from primebuddy.config.storage import SetupError
-from primebuddy.core.planner import plan
-from primebuddy.skills.adapters import adapt_metadata, load_adapters
-from primebuddy.skills.registry import Registry
+from botbuddy.config.storage import SetupError
+from botbuddy.core.planner import plan
+from botbuddy.skills.adapters import adapt_metadata, load_adapters
+from botbuddy.skills.registry import Registry
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,10 +22,10 @@ class SkillArgumentDefaultsTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        environment = patch.dict(os.environ, PRIMEBUDDY_HOME=str(self.root / 'home'))
+        environment = patch.dict(os.environ, BOTBUDDY_HOME=str(self.root / 'home'))
         environment.start()
         self.addCleanup(environment.stop)
-        self.registry = Registry(ROOT.parent / 'primebuddy-skills')
+        self.registry = Registry(ROOT.parent / 'BotSkills')
         self.addCleanup(self.registry.close)
         self.fields = self.registry.skills['diangetai']['actions']['play']['parameters']
 
@@ -34,7 +34,7 @@ class SkillArgumentDefaultsTests(unittest.TestCase):
             return {'tool_calls': [{'id': identifier, 'type': 'function', 'function': {
                 'name': name, 'arguments': json.dumps(arguments)}}]}
         task = {'id': 'music', 'skill': 'diangetai', 'action': 'play', 'args': args, 'after': []}
-        with patch('primebuddy.core.planner.chat', side_effect=[
+        with patch('botbuddy.core.planner.chat', side_effect=[
                 tool('read_skill_file', {'skill': 'diangetai', 'path': 'SKILL.md'}, 'read'),
                 tool('execute_tasks', {'tasks': [task]}, 'execute')]):
             return plan('点歌测试', self.registry)

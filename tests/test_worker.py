@@ -10,7 +10,7 @@ import textwrap
 import time
 import unittest
 
-from primebuddy.config.storage import write_config
+from botbuddy.config.storage import write_config
 
 
 class WorkerTests(unittest.TestCase):
@@ -21,7 +21,7 @@ class WorkerTests(unittest.TestCase):
         self.skill = self.root / 'skill'
         self.skill.mkdir()
         (self.skill / 'SKILL.md').write_text('---\nname: fixture\ndescription: worker fixture\n---\n测试')
-        write_config(self.skill / 'cfg/pkg.yaml', {'primebuddy': {'entrypoint': 'entry.py', 'actions': {
+        write_config(self.skill / 'cfg/pkg.yaml', {'botbuddy': {'entrypoint': 'entry.py', 'actions': {
             'play': {'handler': 'perform', 'parameters': {'name': {'type': 'string'}}}}}})
         self.request = self.root / 'request.json'
         self.result = self.root / 'result.json'
@@ -36,7 +36,7 @@ class WorkerTests(unittest.TestCase):
         self.request.write_text(json.dumps(value))
 
     def command(self):
-        return [sys.executable, '-m', 'primebuddy.skills.worker', str(self.request), str(self.result)]
+        return [sys.executable, '-m', 'botbuddy.skills.worker', str(self.request), str(self.result)]
 
     def run_worker(self):
         result = subprocess.run(self.command(), env=self.env, capture_output=True, text=True, timeout=5)

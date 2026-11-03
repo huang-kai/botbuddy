@@ -7,10 +7,10 @@ import threading
 import unittest
 from unittest.mock import Mock, patch
 
-from primebuddy.config.storage import SetupError
-from primebuddy.core.engine import Context, execute, validate_plan
-from primebuddy.integrations.primebot import device, native_agent
-from primebuddy.integrations.primebot.robot_audio import RobotAudio, AudioError
+from botbuddy.config.storage import SetupError
+from botbuddy.core.engine import Context, execute, validate_plan
+from botbuddy.integrations.primebot import device, native_agent
+from botbuddy.integrations.primebot.robot_audio import RobotAudio, AudioError
 
 
 class DeviceTests(unittest.TestCase):
@@ -43,8 +43,8 @@ class DeviceTests(unittest.TestCase):
             path = Path(directory) / 'audio.wav'
             path.write_bytes(b'fixture')
             with patch.object(device, 'audio_host', return_value='local'), \
-                    patch('primebuddy.integrations.primebot.robot_audio.audio_host', return_value='local'), \
-                    patch('primebuddy.integrations.primebot.robot_audio.subprocess.run') as run:
+                    patch('botbuddy.integrations.primebot.robot_audio.audio_host', return_value='local'), \
+                    patch('botbuddy.integrations.primebot.robot_audio.subprocess.run') as run:
                 self.assertEqual(device.host_command(Path(directory), 'true'), ['bash', '-c', 'true'])
                 with robot.prepared_audio(path) as target:
                     self.assertEqual(target, path.resolve())
@@ -138,13 +138,13 @@ class SpeakerSchedulingTests(unittest.TestCase):
 
 class SkillShutdownTests(unittest.TestCase):
     def test_unused_module_is_not_imported_during_shutdown(self):
-        from primebuddy.skills.runtime import SkillRuntime
+        from botbuddy.skills.runtime import SkillRuntime
         runtime = SkillRuntime({'entrypoint': 'not_loaded.py'})
-        with patch('primebuddy.skills.manager.load_entry', side_effect=AssertionError('must not load')):
+        with patch('botbuddy.skills.manager.load_entry', side_effect=AssertionError('must not load')):
             runtime.close()
 
     def test_all_loaded_skills_are_closed_even_when_one_fails(self):
-        from primebuddy.skills.registry import Registry
+        from botbuddy.skills.registry import Registry
         registry = Registry.__new__(Registry)
         first, second = Mock(), Mock()
         first.close.side_effect = RuntimeError('cleanup failed')

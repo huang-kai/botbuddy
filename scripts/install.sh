@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 用 source ./scripts/install.sh 安装，让当前终端立即获得 primebuddy 命令。
-_primebuddy_install() {
+# 用 source ./scripts/install.sh 安装，让当前终端立即获得 botbuddy 命令。
+_botbuddy_install() {
   local root script environment response result=0
   local -a arguments=("$@")
   if [ -n "${BASH_VERSION:-}" ]; then
@@ -17,7 +17,7 @@ _primebuddy_install() {
     hash -r
   fi
   rm -f "$response"
-  unset -f _primebuddy_install
+  unset -f _botbuddy_install
   return "$result"
 }
-_primebuddy_install "$@"
+_botbuddy_install "$@"

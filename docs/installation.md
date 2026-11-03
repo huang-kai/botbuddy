@@ -1,5 +1,7 @@
 # 安装与使用
 
+从 PrimeBuddy 升级请先阅读[更名迁移说明](name-migration.md)，继续沿用原安装目录和配置。
+
 ### 准备环境
 
 机器人运行环境需要系统 Python 3.10+、ROS 2 和目标设备已安装的原厂消息包。框架读取 `/robot/data/info/series` 识别 T1/Q1；SoC 0 统一称为运控板，SoC 1 称为大脑板。未知型号明确拒绝启动，不覆盖原厂消息包。
@@ -13,8 +15,8 @@
 从源码安装时，在机器人当前登录的板上执行：
 
 ```bash
-git clone https://github.com/huang-kai/primebuddy.git primebuddy
-cd primebuddy
+git clone https://github.com/huang-kai/botbuddy.git botbuddy
+cd botbuddy
 
 source ./scripts/install.sh
 ```
@@ -22,8 +24,8 @@ source ./scripts/install.sh
 如果已经拿到 RPK，可以用 ZIP 工具解压，再运行同一个安装脚本。将 `<版本>` 替换为所下载包的版本号：
 
 ```bash
-unzip "primebuddy-<版本>.rpk" -d ./primebuddy-release
-cd primebuddy-release
+unzip "botbuddy-<版本>.rpk" -d ./botbuddy-release
+cd botbuddy-release
 
 source ./scripts/install.sh
 ```
@@ -36,17 +38,17 @@ source ./scripts/install.sh
 
 这里以固定内网地址作为首次安装约定；大脑板关闭或 SSH 不可达时也会走本板流程。端口可达后的密码错误、身份不符或传输失败会停止安装，不会退回运控板继续。跨板只传输安装包，不搬迁运控板上的旧账号或私有配置。更新已有安装时，请在实际安装 Buddy 的板上操作，流程见 [更新框架与技能](upgrades.md)。
 
-程序安装到目标板的 `~/.primebuddy`，自动准备 Python 依赖和命令入口。首次准备默认日志目录时，可能需要管理员权限。跨板交互安装完成后，终端留在大脑板，可直接运行 `primebuddy start`；输入 `exit` 返回运控板，下次可从运控板执行 `ssh -t run@10.1.1.101` 再进入大脑板。原来的下载或解压目录可以删除。
+程序安装到目标板的 `~/.botbuddy`，自动准备 Python 依赖和命令入口。首次准备默认日志目录时，可能需要管理员权限。跨板交互安装完成后，终端留在大脑板，可直接运行 `botbuddy start`；输入 `exit` 返回运控板，下次可从运控板执行 `ssh -t run@10.1.1.101` 再进入大脑板。原来的下载或解压目录可以删除。
 
 随后向导会依次完成：
 
 1. 自动检查原厂语音连接。本板服务直接查询；跨板连接优先复用已有免密认证，必要时由 SSH 提示输入运控板登录密码，程序不保存密码。
 2. 选择模型服务商，填写 API Host 和 API Key，选择 ASR、LLM、TTS 模型并验证连接；验证会产生少量 API 调用。
-3. 技能列表展示随包技能、已安装技能及 `None`。用方向键移动、空格勾选一个或多个技能，回车确认后按列表顺序逐个调用技能自己的安装和配置向导；完成一个后再进入下一个。选择 `None` 或保持全不选会跳过本次技能步骤，已有技能保持原样。`None` 不能与具体技能同时选择。之后运行 `primebuddy onboard` 可补装或继续配置。
+3. 技能列表展示随包技能、已安装技能及 `None`。用方向键移动、空格勾选一个或多个技能，回车确认后按列表顺序逐个调用技能自己的安装和配置向导；完成一个后再进入下一个。选择 `None` 或保持全不选会跳过本次技能步骤，已有技能保持原样。`None` 不能与具体技能同时选择。之后运行 `botbuddy onboard` 可补装或继续配置。
 
-需要新授权时，向导在大脑板的 `~/.ssh/primebuddy/` 生成专用密钥，只向运控板追加公钥，并在本机 `~/.ssh/config` 中加入对应地址的密钥配置，供框架和独立技能共用。若原厂镜像将当前用户的 `~/.ssh` 设为 root 所有且不可写，安装器会请求管理员权限，只调整该目录本身的所有者和权限，保留里面已有文件。私钥不传输，不覆盖已有用户密钥，更新时保留。首次连接记录主机公钥，主机公钥改变时 SSH 会拒绝连接。已有认证通过时不会生成新密钥。
+需要新授权时，向导在大脑板的 `~/.ssh/botbuddy/` 生成专用密钥，只向运控板追加公钥，并在本机 `~/.ssh/config` 中加入对应地址的密钥配置，供框架和独立技能共用。若原厂镜像将当前用户的 `~/.ssh` 设为 root 所有且不可写，安装器会请求管理员权限，只调整该目录本身的所有者和权限，保留里面已有文件。私钥不传输，不覆盖已有用户密钥，更新时保留。首次连接记录主机公钥，主机公钥改变时 SSH 会拒绝连接。已有认证通过时不会生成新密钥。
 
-从运控板开始双板安装时，可能分别提示“大脑板登录”和“运控板语音连接”的密码。向导通过一次不复用临时会话的连接验证免密认证，并只读查询原厂 Agent 状态；安装不启停 Agent、不切换语音模式。中断后在目标板运行 `primebuddy onboard` 可继续；连接未完成时不会提前进入模型和技能配置。
+从运控板开始双板安装时，可能分别提示“大脑板登录”和“运控板语音连接”的密码。向导通过一次不复用临时会话的连接验证免密认证，并只读查询原厂 Agent 状态；安装不启停 Agent、不切换语音模式。中断后在目标板运行 `botbuddy onboard` 可继续；连接未完成时不会提前进入模型和技能配置。
 
 方向键切换选项，空格多选，回车确认。框架没有附带技能时，稍后按 [部署和管理 skill](skill-management.md) 单独安装即可。
 
@@ -54,13 +56,13 @@ source ./scripts/install.sh
 
 ```bash
 source ./scripts/install.sh --no-onboard
-primebuddy onboard
+botbuddy onboard
 ```
 
 ### 启动与退出
 
 ```bash
-primebuddy start
+botbuddy start
 ```
 
 启动后，先用机器人的原厂唤醒词唤醒，再提出技能请求；空闲超时后需要重新唤醒。当前语音入口主要用于技能调用和必要的澄清。命令在当前终端前台运行，按 **Ctrl+C** 退出。
@@ -82,9 +84,9 @@ T1 和 Q1 统一使用当前固件的 `/robot/software/interface/aimdk_msgs`，�
 新开终端后，如果找不到命令，可加载：
 
 ```bash
-source ~/.primebuddy/bin/env.sh
+source ~/.botbuddy/bin/env.sh
 ```
 
-安装后的 `primebuddy` 入口会按 T1/Q1 自动加载对应的原厂 ROS 环境，新终端无需再次手动加载。双板用户应在大脑板运行命令；运控板上的安装入口不会注册第二份 Buddy。
+安装后的 `botbuddy` 入口会按 T1/Q1 自动加载对应的原厂 ROS 环境，新终端无需再次手动加载。双板用户应在大脑板运行命令；运控板上的安装入口不会注册第二份 Buddy。
 
 [返回文档导航](README.md) · [返回项目首页](../README.md)

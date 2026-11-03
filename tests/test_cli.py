@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
-from primebuddy.cli.commands import dispatch_command as run
+from botbuddy.cli.commands import dispatch_command as run
 import os
 import pty
 import select
@@ -22,8 +22,8 @@ class CliTests(unittest.TestCase):
         for arguments, expected in ((['update'], dict(check=False, version=None, recover=False)),
                 (['update', '--check', '--version', '1.1.0'], dict(check=True, version='1.1.0', recover=False)),
                 (['update', '--recover'], dict(check=False, version=None, recover=True))):
-            with self.subTest(arguments=arguments), patch('primebuddy.tools.update.run_update') as update, \
-                    patch('primebuddy.cli.commands.Registry') as registry, patch('primebuddy.voice.session.serve') as serve:
+            with self.subTest(arguments=arguments), patch('botbuddy.tools.update.run_update') as update, \
+                    patch('botbuddy.cli.commands.Registry') as registry, patch('botbuddy.voice.session.serve') as serve:
                 run(arguments)
             update.assert_called_once_with(**expected)
             registry.assert_not_called()
@@ -31,7 +31,7 @@ class CliTests(unittest.TestCase):
 
     def test_empty_command_explains_entrypoints_without_loading_skills(self):
         output = io.StringIO()
-        with patch('primebuddy.cli.commands.Registry') as registry, contextlib.redirect_stdout(output):
+        with patch('botbuddy.cli.commands.Registry') as registry, contextlib.redirect_stdout(output):
             run([])
         registry.assert_not_called()
         for command in ('start', 'simulate', 'onboard', 'skill'):
@@ -41,8 +41,8 @@ class CliTests(unittest.TestCase):
     def test_start_runs_platform_without_requiring_a_business_skill(self):
         registry = Mock(skills={})
         output = io.StringIO()
-        with patch('primebuddy.cli.commands.Registry', return_value=registry),\
-                patch('primebuddy.voice.session.serve') as serve, self.assertLogs('primebuddy', level='INFO') as output:
+        with patch('botbuddy.cli.commands.Registry', return_value=registry),\
+                patch('botbuddy.voice.session.serve') as serve, self.assertLogs('botbuddy', level='INFO') as output:
             run(['start'])
         args = serve.call_args.args
         self.assertIs(args[0], registry)
@@ -52,8 +52,8 @@ class CliTests(unittest.TestCase):
         self.assertIn('退出', '\n'.join(output.output))
 
     def test_start_passes_only_documented_advanced_options(self):
-        with patch('primebuddy.cli.commands.Registry', return_value=Mock(skills={})),\
-                patch('primebuddy.voice.session.serve') as serve, contextlib.redirect_stdout(io.StringIO()):
+        with patch('botbuddy.cli.commands.Registry', return_value=Mock(skills={})),\
+                patch('botbuddy.voice.session.serve') as serve, contextlib.redirect_stdout(io.StringIO()):
             run(['start', '--sdk-bridge', 'off', '--asr-model', 'qwen-audio-3.1-asr-flash'])
         self.assertEqual(serve.call_args.kwargs['sdk_bridge'], 'off')
         self.assertEqual(serve.call_args.args[1].asr_model, 'qwen-audio-3.1-asr-flash')
@@ -62,7 +62,7 @@ class CliTests(unittest.TestCase):
         for args in (['--voice', '--live', '--allow-only-voice'],
                      ['start', '--live'], ['start', '--skills-dir', '/tmp/skills'],
                      ['simulate', '--text', '你好', '--live'], ['simulate']):
-            with self.subTest(args=args), patch('primebuddy.voice.session.serve') as serve,\
+            with self.subTest(args=args), patch('botbuddy.voice.session.serve') as serve,\
                     contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
                 run(args)
             self.assertEqual(error.exception.code, 2)
@@ -73,9 +73,9 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             plan = Path(temp) / 'plan.json'
             plan.write_text(json.dumps(proposal))
-            with patch('primebuddy.cli.commands.Registry', return_value=Mock(skills={})) as registry,\
-                    patch('primebuddy.cli.commands.execute', return_value={}) as execute,\
-                    patch('primebuddy.voice.session.serve') as serve, contextlib.redirect_stdout(io.StringIO()):
+            with patch('botbuddy.cli.commands.Registry', return_value=Mock(skills={})) as registry,\
+                    patch('botbuddy.cli.commands.execute', return_value={}) as execute,\
+                    patch('botbuddy.voice.session.serve') as serve, contextlib.redirect_stdout(io.StringIO()):
                 run(['simulate', '--skills-dir', temp, '--plan', str(plan)])
         self.assertEqual(registry.call_args.args, (Path(temp),))
         self.assertEqual(execute.call_args.args[0], proposal)
@@ -84,22 +84,22 @@ class CliTests(unittest.TestCase):
 
     def test_text_simulation_calls_planner_but_not_voice_session(self):
         proposal = {'reply': '测试', 'tasks': []}
-        with patch('primebuddy.cli.commands.Registry', return_value=Mock(skills={})),\
-                patch('primebuddy.core.planner.plan', return_value=proposal) as planner,\
-                patch('primebuddy.cli.commands.execute', return_value={}) as execute,\
-                patch('primebuddy.voice.session.serve') as serve, contextlib.redirect_stdout(io.StringIO()):
+        with patch('botbuddy.cli.commands.Registry', return_value=Mock(skills={})),\
+                patch('botbuddy.core.planner.plan', return_value=proposal) as planner,\
+                patch('botbuddy.cli.commands.execute', return_value={}) as execute,\
+                patch('botbuddy.voice.session.serve') as serve, contextlib.redirect_stdout(io.StringIO()):
             run(['simulate', '--text', '测试'])
         self.assertEqual(planner.call_args.args[0], '测试')
         self.assertTrue(execute.call_args.args[2].simulate)
         serve.assert_not_called()
 
     def test_tts_warmup_is_separate_from_start_and_deduplicates_text(self):
-        from primebuddy.voice.speech_cache import COMMON_PROMPTS
+        from botbuddy.voice.speech_cache import COMMON_PROMPTS
         cache = Mock()
-        with patch('primebuddy.voice.speech_cache.SpeechCache', return_value=cache),\
-                patch('primebuddy.config.runtime.private_runtime', return_value=Path('/tmp/test-only')),\
-                patch('primebuddy.cli.commands.Registry') as registry,\
-                patch('primebuddy.voice.session.serve') as serve, contextlib.redirect_stdout(io.StringIO()):
+        with patch('botbuddy.voice.speech_cache.SpeechCache', return_value=cache),\
+                patch('botbuddy.config.runtime.private_runtime', return_value=Path('/tmp/test-only')),\
+                patch('botbuddy.cli.commands.Registry') as registry,\
+                patch('botbuddy.voice.session.serve') as serve, contextlib.redirect_stdout(io.StringIO()):
             run(['tts', 'warmup', '--text', '测试', '--text', '测试'])
         self.assertEqual([call.args[0] for call in cache.prepare.call_args_list], [*COMMON_PROMPTS, '测试'])
         registry.assert_not_called()
@@ -114,7 +114,7 @@ class TerminalTests(unittest.TestCase):
         self.master, self.slave = pty.openpty()
         self.before = termios.tcgetattr(self.slave)
         env = dict(os.environ, PYTHONPATH=str(ROOT / 'src'), TERM=term, COLUMNS=str(size[0]), LINES=str(size[1]))
-        code = 'import json\nfrom primebuddy.cli.wizard import Wizard\nui = Wizard()\n'
+        code = 'import json\nfrom botbuddy.cli.wizard import Wizard\nui = Wizard()\n'
         code += 'try:\n    result = ' + expression + '\n    print("RESULT", json.dumps(result))\n'
         code += 'except (KeyboardInterrupt, EOFError):\n    print("CANCELLED")\n'
         self.process = subprocess.Popen([sys.executable, '-c', code], stdin=self.slave,

@@ -9,8 +9,8 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from primebuddy.skills.registry import Registry
-from primebuddy.core.engine import Context, execute, validate_plan
+from botbuddy.skills.registry import Registry
+from botbuddy.core.engine import Context, execute, validate_plan
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -20,10 +20,10 @@ class RuntimeTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        environment = patch.dict(os.environ, PRIMEBUDDY_HOME=str(self.root / 'home'))
+        environment = patch.dict(os.environ, BOTBUDDY_HOME=str(self.root / 'home'))
         environment.start()
         self.addCleanup(environment.stop)
-        adapters = patch('primebuddy.skills.registry.load_adapters', return_value={})
+        adapters = patch('botbuddy.skills.registry.load_adapters', return_value={})
         adapters.start()
         self.addCleanup(adapters.stop)
         # 调度用本地无设备 fixture，旧原生入口仍经真实兼容子进程执行。
@@ -39,7 +39,7 @@ class RuntimeTests(unittest.TestCase):
             (folder / 'cfg').mkdir(parents=True)
             (folder / 'SKILL.md').write_text('---\nname: ' + name + '\ndescription: 调度测试\n---\nfixture')
             version = '0.4.0' if name == 'diangetai' else '0.3.0'
-            (folder / 'cfg/pkg.yaml').write_text(json.dumps({'version': version, 'primebuddy': {
+            (folder / 'cfg/pkg.yaml').write_text(json.dumps({'version': version, 'botbuddy': {
                 'entrypoint': 'actions.py', 'actions': {action: {'parameters': parameters, 'resources': resources}}}}))
             (folder / 'actions.py').write_text('import time\n'
                 'def preflight(action, args, context):\n'
@@ -54,9 +54,9 @@ class RuntimeTests(unittest.TestCase):
                      'integrations.primebot.speech_audio', 'integrations.primebot.robot_audio',
                      'integrations.primebot.native_media', 'integrations.primebot.prepared_audio',
                      'integrations.primebot.prepare_audio_process'):
-            module = importlib.import_module('primebuddy.' + name)
+            module = importlib.import_module('botbuddy.' + name)
             self.assertTrue(Path(module.__file__).is_relative_to(ROOT))
-        with patch('primebuddy.skills.manager.load_entry') as load:
+        with patch('botbuddy.skills.manager.load_entry') as load:
             for skill in ('diangetai', 'yeelight'):
                 runtime = self.registry.load(skill)
                 host_module = importlib.import_module(type(runtime).__module__)
@@ -69,7 +69,7 @@ class RuntimeTests(unittest.TestCase):
         for skill, relative in [('diangetai', 'music/qqmusic_client.py'),
                                 ('yeelight', 'business/feedback.py'), ('yeelight', 'integrations/mcp_client.py'),
                                 ('yeelight', 'business/intent.py')]:
-            folder = ROOT.parent / 'primebuddy-skills' / skill
+            folder = ROOT.parent / 'BotSkills' / skill
             path = (folder / 'src' / relative).resolve()
             self.assertTrue(path.is_file() and path.is_relative_to(folder))
 
@@ -185,7 +185,7 @@ class RuntimeTests(unittest.TestCase):
             (folder / 'SKILL.md').write_text('---\nname: hello\ndescription: 问候\n---\n问候测试。')
             (folder / 'cfg/pkg.yaml').write_text(json.dumps({
                 'package_name': 'hello', 'description': '问候', 'author': 'test-only', 'user_id': 'robot_local',
-                'sdk_version': 'v1.0.0', 'version': '0.1.0', 'primebuddy': {
+                'sdk_version': 'v1.0.0', 'version': '0.1.0', 'botbuddy': {
                     'api_version': 1, 'setup': 'src/setup.py', 'entrypoint': 'src/skill.py',
                     'actions': {'hello': {'parameters': {}, 'resources': []}}}}))
             (folder / 'requirements.txt').write_text('')

@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from primebuddy.integrations.primebot.robot_audio import AudioError, audio_session, frontend_lock
+from botbuddy.integrations.primebot.robot_audio import AudioError, audio_session, frontend_lock
 
 
 class FrontendLockTests(unittest.TestCase):
@@ -17,7 +17,7 @@ class FrontendLockTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.lock = self.root / 'frontend.lock'
-        lock_path = patch('primebuddy.integrations.primebot.robot_audio.FRONTEND_LOCK', self.lock)
+        lock_path = patch('botbuddy.integrations.primebot.robot_audio.FRONTEND_LOCK', self.lock)
         lock_path.start()
         self.addCleanup(lock_path.stop)
         self.runtime = self.root / 'runtime'

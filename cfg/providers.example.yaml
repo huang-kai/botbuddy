@@ -1,4 +1,4 @@
-# 公开模板；实际凭据保存在 ~/.primebuddy/cfg/providers.yaml，不随代码发布。
+# 公开模板；实际凭据保存在 ~/.botbuddy/cfg/providers.yaml，不随代码发布。
 qianwen:
   api_host: dashscope.aliyuncs.com
   api_key: ''

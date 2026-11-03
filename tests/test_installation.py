@@ -14,11 +14,11 @@ import unittest
 from unittest.mock import patch
 import zipfile
 
-from primebuddy import __version__
-from primebuddy.skills import manager as manager
-from primebuddy.core.engine import Context, execute
-from primebuddy.skills.registry import Registry
-from primebuddy.config.storage import SetupError, get_data_directory, config_path, read_config, write_config
+from botbuddy import __version__
+from botbuddy.skills import manager as manager
+from botbuddy.core.engine import Context, execute
+from botbuddy.skills.registry import Registry
+from botbuddy.config.storage import SetupError, get_data_directory, config_path, read_config, write_config
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -34,7 +34,7 @@ def make_skill(root, setup='return {}', version='0.1.0', name='hello'):
     (root / 'cfg/pkg.yaml').write_text(json.dumps({
         'user_id': 'robot_local', 'version': version, 'sdk_version': 'v1.0.0',
         'package_name': name, 'author': 'test-only', 'description': '测试问候',
-        'primebuddy': {'api_version': 1, 'entrypoint': 'src/skill.py', 'setup': 'src/setup.py',
+        'botbuddy': {'api_version': 1, 'entrypoint': 'src/skill.py', 'setup': 'src/setup.py',
                       'actions': {'hello': {'parameters': {}, 'resources': []}}}}))
     (root / 'requirements.txt').write_text('# No third-party dependencies.\n')
     (root / 'SKILL.md').write_text('---\nname: ' + name + '\ndescription: 测试问候\n---\n调用 hello 问候用户。')
@@ -61,7 +61,7 @@ class InstallationTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        patcher = patch.dict(os.environ, {'PRIMEBUDDY_HOME': str(self.root / 'home')})
+        patcher = patch.dict(os.environ, {'BOTBUDDY_HOME': str(self.root / 'home')})
         patcher.start()
         self.addCleanup(patcher.stop)
         self.source = make_skill(self.root / 'hello')
@@ -181,7 +181,7 @@ class InstallationTests(unittest.TestCase):
         manager.install(str(self.archive), DummyUI())
         manager.set_enabled('hello', False)
         # 用新进程确认列表来自磁盘，同时不向 LLM 暴露已停用技能。
-        result = subprocess.run([sys.executable, '-m', 'primebuddy', 'skill', 'list'],
+        result = subprocess.run([sys.executable, '-m', 'botbuddy', 'skill', 'list'],
             env=dict(os.environ, PYTHONPATH=str(ROOT / 'src')), capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         for text in ('hello', '0.1.0', '已停用', str(get_data_directory() / 'skills/hello')):
@@ -215,8 +215,8 @@ class InstallationTests(unittest.TestCase):
     def test_invalid_metadata_or_requirements_never_executes_setup(self):
         data = json.loads((self.source / 'cfg/pkg.yaml').read_text())
         cases = [dict(data, package_name='../bad'),
-                 dict(data, primebuddy=dict(data['primebuddy'], api_version=2)),
-                 dict(data, primebuddy=dict(data['primebuddy'], entrypoint='../outside.py'))]
+                 dict(data, botbuddy=dict(data['botbuddy'], api_version=2)),
+                 dict(data, botbuddy=dict(data['botbuddy'], entrypoint='../outside.py'))]
         for bad in cases:
             with self.subTest(metadata=bad):
                 (self.source / 'cfg/pkg.yaml').write_text(json.dumps(bad))
@@ -235,7 +235,7 @@ class InstallationTests(unittest.TestCase):
 
     def test_https_zip_uses_same_installer(self):
         response = io.BytesIO(self.archive.read_bytes())
-        with patch('primebuddy.skills.manager.urllib.request.build_opener') as opener:
+        with patch('botbuddy.skills.manager.urllib.request.build_opener') as opener:
             opener.return_value.open.return_value = response
             record = manager.install('https://example.com/hello.zip', DummyUI())
         self.assertTrue(record['ready'])
@@ -248,7 +248,7 @@ class InstallationTests(unittest.TestCase):
         record = manager.install(archive, DummyUI())
         self.assertTrue(record['ready'])
         self.assertTrue((manager.get_skill_package_directory(record) / 'SKILL.md').is_file())
-        with patch('primebuddy.skills.manager.urllib.request.build_opener') as opener:
+        with patch('botbuddy.skills.manager.urllib.request.build_opener') as opener:
             opener.return_value.open.return_value = io.BytesIO(archive.read_bytes())
             updated = manager.install('https://example.com/hello-0.1.0.rpk', DummyUI(), replace=True)
         self.assertTrue(updated['ready'])
@@ -303,7 +303,7 @@ class InstallationTests(unittest.TestCase):
 
     def test_source_simulation_never_creates_installation_configuration(self):
         env = dict(os.environ, PYTHONPATH=str(ROOT / 'src'))
-        result = subprocess.run([sys.executable, '-m', 'primebuddy', 'simulate', '--skills-dir', str(ROOT.parent / 'primebuddy-skills'),
+        result = subprocess.run([sys.executable, '-m', 'botbuddy', 'simulate', '--skills-dir', str(ROOT.parent / 'BotSkills'),
                                  '--plan', str(ROOT / 'tests/fixtures/parallel.json')], env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('模拟', result.stdout)
@@ -311,10 +311,10 @@ class InstallationTests(unittest.TestCase):
 
     def test_cli_noninteractive_install_stays_pending(self):
         env = dict(os.environ, PYTHONPATH=str(ROOT / 'src'))
-        result = subprocess.run([sys.executable, '-m', 'primebuddy', 'skill', 'install', str(self.archive), '--no-configure'], env=env, capture_output=True, text=True)
+        result = subprocess.run([sys.executable, '-m', 'botbuddy', 'skill', 'install', str(self.archive), '--no-configure'], env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(manager.load_skill_records()['hello']['ready'])
-        result = subprocess.run([sys.executable, '-m', 'primebuddy', 'skill', 'configure', 'hello'], env=env, input='', capture_output=True, text=True)
+        result = subprocess.run([sys.executable, '-m', 'botbuddy', 'skill', 'configure', 'hello'], env=env, input='', capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
         self.assertIn('交互终端', result.stderr)
         self.assertNotIn('Traceback', result.stderr)
@@ -322,7 +322,7 @@ class InstallationTests(unittest.TestCase):
     def test_singular_skill_command_installs_and_lists(self):
         env = dict(os.environ, PYTHONPATH=str(ROOT / 'src'))
         for args in (['skill', 'install', str(self.archive), '--no-configure'], ['skill', 'list']):
-            result = subprocess.run([sys.executable, '-m', 'primebuddy', *args], env=env, capture_output=True, text=True)
+            result = subprocess.run([sys.executable, '-m', 'botbuddy', *args], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('hello', result.stdout)
         self.assertFalse(manager.load_skill_records()['hello']['ready'])
@@ -330,8 +330,8 @@ class InstallationTests(unittest.TestCase):
 
 class ModelTests(unittest.TestCase):
     def test_provider_host_validation_and_role_specific_configurations(self):
-        from primebuddy.providers.qianwen import build_config
-        from primebuddy.config.models import provider_models
+        from botbuddy.providers.qianwen import build_config
+        from botbuddy.config.models import provider_models
         settings = {'api_host': 'https://demo.cn-beijing.maas.aliyuncs.com/', 'api_key': 'test-key'}
         models = provider_models('qianwen', settings)
         for role in ('asr', 'llm', 'tts'):
@@ -348,10 +348,10 @@ class ModelTests(unittest.TestCase):
             build_config('asr', models['asr'][0], dict(settings, api_key=''))
 
     def test_three_capability_checks_report_independent_results_without_secrets(self):
-        from primebuddy.config.models import check_model
-        from primebuddy.config.storage import load_app_config
-        with patch('primebuddy.providers.qianwen.asr.recognize', side_effect=RuntimeError('secret')), \
-                patch('primebuddy.providers.qianwen.llm.complete') as llm, patch('primebuddy.providers.qianwen.tts.synthesize_wav') as tts:
+        from botbuddy.config.models import check_model
+        from botbuddy.config.storage import load_app_config
+        with patch('botbuddy.providers.qianwen.asr.recognize', side_effect=RuntimeError('secret')), \
+                patch('botbuddy.providers.qianwen.llm.complete') as llm, patch('botbuddy.providers.qianwen.tts.synthesize_wav') as tts:
             result = check_model(load_app_config(), {'qianwen': {'api_host': 'dashscope.aliyuncs.com', 'api_key': 'test-only'}})
         self.assertIn('RuntimeError', result['ASR'])
         self.assertNotIn('secret', str(result))
@@ -361,8 +361,8 @@ class ModelTests(unittest.TestCase):
         tts.assert_called_once()
 
     def test_old_model_file_migrates_to_selection_and_provider_files(self):
-        from primebuddy.config.models import load_model
-        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, PRIMEBUDDY_HOME=temp):
+        from botbuddy.config.models import load_model
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, BOTBUDDY_HOME=temp):
             old = get_data_directory() / 'cfg/model.yaml'
             write_config(old, {'provider': 'qianwen', 'api_host': 'dashscope.aliyuncs.com', 'api_key': 'test-only',
                                'model': 'qwen-audio-3.1-asr-flash', 'tts_voice': 'Cherry'})
@@ -378,8 +378,8 @@ class ModelTests(unittest.TestCase):
             self.assertFalse(old.exists())
 
     def test_manual_model_and_provider_changes_are_used_without_rewriting_files(self):
-        from primebuddy.config.models import load_model
-        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, PRIMEBUDDY_HOME=temp):
+        from botbuddy.config.models import load_model
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, BOTBUDDY_HOME=temp):
             config_file, providers_file = get_data_directory() / 'cfg/config.yaml', get_data_directory() / 'cfg/providers.yaml'
             write_config(config_file, {'asr': 'qianwen:qwen-audio-3.1-asr-flash', 'tts': {'tts_voice': 'Cherry'}})
             write_config(providers_file, {'qianwen': {'api_host': 'demo.cn-beijing.maas.aliyuncs.com', 'api_key': 'test-only'}})
@@ -394,15 +394,15 @@ class ModelTests(unittest.TestCase):
 
 class ReleaseTests(unittest.TestCase):
     def installer(self):
-        spec = importlib.util.spec_from_file_location('installer_dependency_test', ROOT / 'src/primebuddy/tools/install.py')
+        spec = importlib.util.spec_from_file_location('installer_dependency_test', ROOT / 'src/botbuddy/tools/install.py')
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
 
     def test_cli_without_arguments_prints_help_without_building(self):
-        from primebuddy.tools import build_release as builder
+        from botbuddy.tools import build_release as builder
         with tempfile.TemporaryDirectory() as temp:
-            source = Path(temp) / 'primebuddy'
+            source = Path(temp) / 'botbuddy'
             with patch.object(builder, 'ROOT', source), \
                     patch.object(sys, 'argv', ['build_release.py']), \
                     patch.object(sys, 'stdout', io.StringIO()) as stdout:
@@ -412,12 +412,12 @@ class ReleaseTests(unittest.TestCase):
             self.assertFalse(source.exists())
 
     def test_explicit_cli_builds_versioned_rpks_and_only_bundles_selected_skills(self):
-        from primebuddy.tools import build_release as builder
+        from botbuddy.tools import build_release as builder
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
-            source = directory / 'primebuddy'
+            source = directory / 'botbuddy'
             self.installer().stage_application(ROOT, source)
-            collection = directory / 'primebuddy-skills'
+            collection = directory / 'BotSkills'
             make_skill(collection / 'hello')
             make_skill(collection / 'other', version='0.2.0', name='other')
             make_skill(collection / 'unselected', name='unselected')
@@ -434,13 +434,13 @@ class ReleaseTests(unittest.TestCase):
                     patch.object(sys, 'stdout', io.StringIO()):
                 builder.main()
             names = {path.name for path in output.iterdir()}
-            self.assertEqual(names, {f'primebuddy-{__version__}.rpk', 'hello-0.1.0.rpk', 'other-0.2.0.rpk'})
+            self.assertEqual(names, {f'botbuddy-{__version__}.rpk', 'hello-0.1.0.rpk', 'other-0.2.0.rpk'})
             for path in output.iterdir():
                 self.assertTrue(zipfile.is_zipfile(path))
                 with zipfile.ZipFile(path) as package:
                     self.assertIsNone(package.testzip())
                     self.assertFalse(any('design' in Path(name).parts for name in package.namelist()))
-            with zipfile.ZipFile(output / f'primebuddy-{__version__}.rpk') as framework:
+            with zipfile.ZipFile(output / f'botbuddy-{__version__}.rpk') as framework:
                 self.assertEqual(framework.read('LICENSE'), (ROOT / 'LICENSE').read_bytes())
                 self.assertEqual({name for name in framework.namelist() if name.startswith('resource/bundled/')},
                     {'resource/bundled/hello-0.1.0.rpk', 'resource/bundled/other-0.2.0.rpk'})
@@ -448,7 +448,7 @@ class ReleaseTests(unittest.TestCase):
                     self.assertEqual(framework.read('resource/bundled/' + filename), (output / filename).read_bytes())
 
     def test_single_skill_cli_preserves_existing_rpk_unless_overwrite_is_requested(self):
-        from primebuddy.tools import build_release as builder
+        from botbuddy.tools import build_release as builder
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
             skill = make_skill(directory / 'hello')
@@ -471,7 +471,7 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual([path.name for path in output.iterdir()], ['hello-0.1.0.rpk'])
 
     def test_failed_rebuild_keeps_existing_packages_and_framework_without_selected_skills_has_no_bundles(self):
-        from primebuddy.tools import build_release as builder
+        from botbuddy.tools import build_release as builder
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
             skill = make_skill(directory / 'hello')
@@ -486,8 +486,8 @@ class ReleaseTests(unittest.TestCase):
             with patch.object(sys, 'argv', ['build_release.py', '--framework', '--output-dir', str(separate)]), \
                     patch.object(sys, 'stdout', io.StringIO()):
                 builder.main()
-            self.assertEqual([path.name for path in separate.iterdir()], [f'primebuddy-{__version__}.rpk'])
-            with zipfile.ZipFile(separate / f'primebuddy-{__version__}.rpk') as package:
+            self.assertEqual([path.name for path in separate.iterdir()], [f'botbuddy-{__version__}.rpk'])
+            with zipfile.ZipFile(separate / f'botbuddy-{__version__}.rpk') as package:
                 self.assertFalse(any(name.startswith('resource/bundled/') for name in package.namelist()))
 
     def test_installer_reuses_system_yaml_without_pip(self):
@@ -520,7 +520,7 @@ class ReleaseTests(unittest.TestCase):
                 '-o', str(os.getuid()), '-g', str(os.getgid()), str(path)])
 
     def test_release_onboard_upgrades_bundle_and_preserves_skill_configuration(self):
-        spec = importlib.util.spec_from_file_location('build_upgrade_test', ROOT / 'src/primebuddy/tools/build_release.py')
+        spec = importlib.util.spec_from_file_location('build_upgrade_test', ROOT / 'src/botbuddy/tools/build_release.py')
         builder = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(builder)
         with tempfile.TemporaryDirectory() as temp:
@@ -530,12 +530,12 @@ class ReleaseTests(unittest.TestCase):
             archive = builder.build_releases(directory / 'release', [new])[0]
             with zipfile.ZipFile(archive) as package:
                 package.extractall(directory / 'unpacked')
-            env = dict(os.environ, PRIMEBUDDY_HOME=str(directory / 'data'),
+            env = dict(os.environ, BOTBUDDY_HOME=str(directory / 'data'),
                        PYTHONPATH=str(directory / 'unpacked/src'))
             script = '''import sys
-from primebuddy.skills import manager as skills
-from primebuddy.cli.onboarding import onboard
-from primebuddy.config.storage import skill_config
+from botbuddy.skills import manager as skills
+from botbuddy.cli.onboarding import onboard
+from botbuddy.config.storage import skill_config
 class UI:
     def info(self, message): pass
     def header(self, *args): pass
@@ -554,7 +554,7 @@ print('BUNDLE_UPGRADE_OK')
             self.assertIn('BUNDLE_UPGRADE_OK', result.stdout)
 
     def test_installer_rejects_virtualenv_before_writing(self):
-        spec = importlib.util.spec_from_file_location('installer_test', ROOT / 'src/primebuddy/tools/install.py')
+        spec = importlib.util.spec_from_file_location('installer_test', ROOT / 'src/botbuddy/tools/install.py')
         installer = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(installer)
         with tempfile.TemporaryDirectory() as temp, patch.object(sys, 'prefix', sys.base_prefix + '/venv'):
@@ -564,7 +564,7 @@ print('BUNDLE_UPGRADE_OK')
             self.assertFalse(prefix.exists())
 
     def test_release_extract_install_command_and_bundled_skill(self):
-        spec = importlib.util.spec_from_file_location('build_release_test', ROOT / 'src/primebuddy/tools/build_release.py')
+        spec = importlib.util.spec_from_file_location('build_release_test', ROOT / 'src/botbuddy/tools/build_release.py')
         builder = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(builder)
         with tempfile.TemporaryDirectory() as temp:
@@ -577,7 +577,7 @@ print('BUNDLE_UPGRADE_OK')
                 package.extractall(directory / 'unpacked')
                 self.assertIn('main.py', package.namelist())
                 self.assertIn('cfg/pkg.yaml', package.namelist())
-                self.assertFalse(any(name.startswith('primebuddy/') for name in package.namelist()))
+                self.assertFalse(any(name.startswith('botbuddy/') for name in package.namelist()))
                 self.assertIn('resource/bundled/hello-0.1.0.rpk', package.namelist())
                 self.assertIn('README.md', package.namelist())
                 self.assertEqual(package.read('LICENSE'), (ROOT / 'LICENSE').read_bytes())
@@ -589,33 +589,33 @@ print('BUNDLE_UPGRADE_OK')
             app = directory / 'unpacked'
             shell_home = directory / 'shell home'
             shell_home.mkdir()
-            env = dict(os.environ, HOME=str(shell_home), SHELL='/bin/bash', PRIMEBUDDY_LOG_DIR=str(directory / 'logs'))
-            env.pop('PRIMEBUDDY_HOME', None)
+            env = dict(os.environ, HOME=str(shell_home), SHELL='/bin/bash', BOTBUDDY_LOG_DIR=str(directory / 'logs'))
+            env.pop('BOTBUDDY_HOME', None)
             env.pop('PYTHONPATH', None)
             result = subprocess.run([sys.executable, str(app / 'main.py'), 'install',
                                      '--home', str(prefix), '--no-onboard'], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse((prefix / 'venv').exists())
             self.assertFalse((prefix / 'app').exists())
-            self.assertFalse((bindir / 'primebuddy').is_symlink())
-            self.assertTrue((prefix / 'src/primebuddy/cli/commands.py').is_file())
+            self.assertFalse((bindir / 'botbuddy').is_symlink())
+            self.assertTrue((prefix / 'src/botbuddy/cli/commands.py').is_file())
             self.assertEqual((prefix / 'LICENSE').read_bytes(), (ROOT / 'LICENSE').read_bytes())
             self.assertTrue((prefix / 'cfg/config.yaml').is_file())
             self.assertEqual((prefix / 'cfg/providers.yaml').stat().st_mode & 0o777, 0o600)
             # 安装后删除解压目录，仍能从统一目录运行和安装随包技能。
             shutil.rmtree(app)
-            self.assertIn(sys.executable, (bindir / 'primebuddy').read_text())
-            launcher = str(bindir / 'primebuddy')
+            self.assertIn(sys.executable, (bindir / 'botbuddy').read_text())
+            launcher = str(bindir / 'botbuddy')
             result = subprocess.run([launcher, '--version'], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('PrimeBuddy ' + __version__, result.stdout)
+            self.assertIn('BotBuddy ' + __version__, result.stdout)
             result = subprocess.run([launcher, 'skill', 'install', str((prefix / 'resource/bundled/hello-0.1.0.rpk').relative_to(directory)), '--no-configure'],
                                     cwd=directory, env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(read_config(prefix / 'cfg/skills.yaml')['hello']['ready'])
             # 从新终端启动时无需再手动给 PATH 加目录。
             result = subprocess.run(['/bin/bash', '--noprofile', '--rcfile', str(shell_home / '.bashrc'),
-                                     '-ic', 'primebuddy --version'], env=env, capture_output=True, text=True)
+                                     '-ic', 'botbuddy --version'], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_sourced_installer_updates_current_shell_and_preserves_existing_data(self):
@@ -626,10 +626,10 @@ print('BUNDLE_UPGRADE_OK')
             shell_home = directory / 'home'
             shell_home.mkdir()
             (shell_home / '.bashrc').write_text('# Keep my settings\n')
-            env = dict(os.environ, HOME=str(shell_home), SHELL='/bin/bash', PRIMEBUDDY_LOG_DIR=str(directory / 'logs'), PATH='/usr/bin:/bin', ASSISTANT_PYTHON=sys.executable)
-            env.pop('PRIMEBUDDY_HOME', None)
+            env = dict(os.environ, HOME=str(shell_home), SHELL='/bin/bash', BOTBUDDY_LOG_DIR=str(directory / 'logs'), PATH='/usr/bin:/bin', ASSISTANT_PYTHON=sys.executable)
+            env.pop('BOTBUDDY_HOME', None)
             env.pop('PYTHONPATH', None)
-            data = shell_home / '.primebuddy'
+            data = shell_home / '.botbuddy'
             write_config(data / 'cfg/providers.yaml', {'qianwen': {'api_key': 'existing-test-value'}})
             shells = [('/bin/bash', ['--noprofile', '--norc'])]
             if shutil.which('zsh'):
@@ -638,27 +638,27 @@ print('BUNDLE_UPGRADE_OK')
                 for _ in range(2):
                     current_env = dict(env, SHELL=shell, ZDOTDIR=str(shell_home))
                     result = subprocess.run([shell, *flags, '-c',
-                        'source "$1/scripts/install.sh" --no-onboard && primebuddy --version && primebuddy skill list',
+                        'source "$1/scripts/install.sh" --no-onboard && botbuddy --version && botbuddy skill list',
                         'installer-test', str(app)], cwd=directory, env=current_env, capture_output=True, text=True)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertIn('PrimeBuddy ' + __version__, result.stdout)
+                    self.assertIn('BotBuddy ' + __version__, result.stdout)
             self.assertEqual(read_config(data / 'cfg/providers.yaml'), {'qianwen': {'api_key': 'existing-test-value'}})
             startup = (shell_home / '.bashrc').read_text()
             self.assertTrue(startup.startswith('# Keep my settings\n'))
-            self.assertEqual(startup.count('# >>> PrimeBuddy PATH >>>'), 1)
+            self.assertEqual(startup.count('# >>> BotBuddy PATH >>>'), 1)
             self.assertFalse((data / 'app').exists())
-            self.assertTrue((data / 'bin/primebuddy').is_file())
+            self.assertTrue((data / 'bin/botbuddy').is_file())
             self.assertTrue((data / 'main.py').is_file())
             self.assertTrue((data / 'docs/README.md').is_file())
-            self.assertNotIn(str(app), (data / 'bin/primebuddy').read_text())
+            self.assertNotIn(str(app), (data / 'bin/botbuddy').read_text())
 
     def test_upgrade_replaces_code_and_preserves_private_files_and_installed_skills(self):
         installer = self.installer()
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ), \
                 patch.object(installer, 'configure_shell'), patch.object(installer, 'prepare_logs'):
-            home = Path(temp).resolve() / '.primebuddy'
+            home = Path(temp).resolve() / '.botbuddy'
             command = installer.install(home)
-            old_code = home / 'src/primebuddy/obsolete_test_module.py'
+            old_code = home / 'src/botbuddy/obsolete_test_module.py'
             old_code.write_text('# old framework file\n')
             private = {'cfg/config.yaml': '# keep my comments\nvoice:\n  speech_cache_entries: 7\n',
                        'cfg/providers.yaml': 'qianwen:\n  api_key: test-only-key\n',
@@ -675,7 +675,7 @@ print('BUNDLE_UPGRADE_OK')
             for name, content in private.items():
                 self.assertEqual((home / name).read_text(), content, name)
             # 从已安装目录重新执行安装，也不能递归复制或清空自身数据。
-            with patch.object(installer, '__file__', str(home / 'src/primebuddy/tools/install.py')):
+            with patch.object(installer, '__file__', str(home / 'src/botbuddy/tools/install.py')):
                 installer.install(home)
             result = subprocess.run([str(command), 'skill', 'list'], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -686,11 +686,11 @@ print('BUNDLE_UPGRADE_OK')
         installer = self.installer()
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ), \
                 patch.object(installer, 'prepare_logs'), patch.object(installer, 'configure_shell') as shell:
-            home = Path(temp).resolve() / '.primebuddy'
+            home = Path(temp).resolve() / '.botbuddy'
             installer.install(home)
             (home / 'main.py').write_text('# previous code\n')
             before = {name: (home / name).read_bytes() for name in
-                      ('main.py', 'bin/primebuddy', 'cfg/config.yaml', 'cfg/providers.yaml')}
+                      ('main.py', 'bin/botbuddy', 'cfg/config.yaml', 'cfg/providers.yaml')}
             shell.side_effect = OSError('test PATH failure')
             with self.assertRaisesRegex(OSError, 'test PATH failure'):
                 installer.install(home)
@@ -702,7 +702,7 @@ print('BUNDLE_UPGRADE_OK')
         installer = self.installer()
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ), \
                 patch.object(installer, 'prepare_logs'), patch.object(installer, 'configure_shell'):
-            home = Path(temp).resolve() / '.primebuddy'
+            home = Path(temp).resolve() / '.botbuddy'
             installer.install(home)
             (home / 'main.py').write_text('# running application\n')
             with (home / 'runtime/audio.lock').open('a') as lock:
@@ -713,10 +713,10 @@ print('BUNDLE_UPGRADE_OK')
 
     def test_release_built_from_installed_home_excludes_private_data(self):
         installer = self.installer()
-        from primebuddy.tools import build_release
+        from botbuddy.tools import build_release
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ), \
                 patch.object(installer, 'prepare_logs'), patch.object(installer, 'configure_shell'):
-            home = Path(temp).resolve() / '.primebuddy'
+            home = Path(temp).resolve() / '.botbuddy'
             installer.install(home)
             installer.write_atomic(home / 'cfg/providers.yaml', 'api_key: do-not-ship\n', 0o600)
             installer.write_atomic(home / 'cfg/skills/hello/config.yaml', 'secret: do-not-ship\n', 0o600)
@@ -735,7 +735,7 @@ print('BUNDLE_UPGRADE_OK')
 
     def test_release_with_docs_can_be_built_installed_and_run(self):
         installer = self.installer()
-        from primebuddy.tools import build_release
+        from botbuddy.tools import build_release
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ), \
                 patch.object(installer, 'prepare_logs'), patch.object(installer, 'configure_shell'):
             directory = Path(temp)
@@ -748,24 +748,24 @@ print('BUNDLE_UPGRADE_OK')
                 package.extractall(directory / 'unpacked')
             app = directory / 'unpacked'
             home = directory / 'installed'
-            with patch.object(installer, '__file__', str(app / 'src/primebuddy/tools/install.py')):
+            with patch.object(installer, '__file__', str(app / 'src/botbuddy/tools/install.py')):
                 launcher = installer.install(home)
             self.assertTrue((home / 'docs/README.md').is_file())
             self.assertTrue((home / 'resource/bundled/hello-0.1.0.rpk').is_file())
             result = subprocess.run([str(launcher), '--version'], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('PrimeBuddy ' + __version__, result.stdout)
+            self.assertIn('BotBuddy ' + __version__, result.stdout)
 
 
 class OnboardingTests(unittest.TestCase):
     def test_model_retry_preserves_secret_without_displaying_it(self):
         from unittest.mock import Mock
-        from primebuddy.config.models import configure_model
+        from botbuddy.config.models import configure_model
         ui = Mock()
         ui.ask.side_effect = ['dashscope.aliyuncs.com', 'secret-for-test', 'dashscope.aliyuncs.com', 'secret-for-test']
         ui.confirm.return_value = True
         ui.choose.return_value = 0
-        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'PRIMEBUDDY_HOME': temp}), patch('primebuddy.config.models.check_model', side_effect=[{'ASR': 'failed', 'LLM': 'ok', 'TTS': 'ok'}, {'ASR': 'ok', 'LLM': 'ok', 'TTS': 'ok'}]):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'BOTBUDDY_HOME': temp}), patch('botbuddy.config.models.check_model', side_effect=[{'ASR': 'failed', 'LLM': 'ok', 'TTS': 'ok'}, {'ASR': 'ok', 'LLM': 'ok', 'TTS': 'ok'}]):
             configure_model(ui)
             saved = read_config(get_data_directory() / 'cfg/config.yaml')
             self.assertEqual(saved['asr']['model'], 'qianwen:qwen3-asr-flash')
@@ -777,12 +777,12 @@ class OnboardingTests(unittest.TestCase):
 
     def test_skip_cloud_verification_is_explicitly_recorded(self):
         from unittest.mock import Mock
-        from primebuddy.config.models import configure_model
+        from botbuddy.config.models import configure_model
         ui = Mock()
         ui.ask.side_effect = ['dashscope.aliyuncs.com', 'secret-for-test']
         ui.confirm.return_value = False
         ui.choose.return_value = 0
-        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'PRIMEBUDDY_HOME': temp}), patch('primebuddy.config.models.check_model') as check:
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'BOTBUDDY_HOME': temp}), patch('botbuddy.config.models.check_model') as check:
             configure_model(ui)
             self.assertEqual(read_config(get_data_directory() / 'cfg/config.yaml')['tts']['model'], 'qianwen:qwen-audio-3.0-tts-plus')
         check.assert_not_called()
@@ -790,26 +790,26 @@ class OnboardingTests(unittest.TestCase):
 
     def test_reenter_onboard_reconfigures_existing_bundle_without_installing_again(self):
         from unittest.mock import Mock
-        from primebuddy.cli.onboarding import onboard
+        from botbuddy.cli.onboarding import onboard
         ui = Mock()
         ui.confirm.return_value = False
         ui.multiselect.return_value = [0]
         bundles = {'hello': {'path': Path('hello.zip'), 'version': '0.1.0'}}
-        with patch('primebuddy.cli.onboarding.bundled_skills', return_value=bundles), patch('primebuddy.cli.onboarding.load_skill_records', return_value={'hello': {'ready': True, 'version': '0.1.0'}}), patch('primebuddy.cli.onboarding.install') as install, patch('primebuddy.cli.onboarding.configure') as configure:
+        with patch('botbuddy.cli.onboarding.bundled_skills', return_value=bundles), patch('botbuddy.cli.onboarding.load_skill_records', return_value={'hello': {'ready': True, 'version': '0.1.0'}}), patch('botbuddy.cli.onboarding.install') as install, patch('botbuddy.cli.onboarding.configure') as configure:
             onboard(ui)
         install.assert_not_called()
         configure.assert_called_once_with('hello', ui)
 
     def test_skipped_bundle_stays_uninstalled_and_does_not_disable_existing(self):
         from unittest.mock import Mock
-        from primebuddy.cli.onboarding import onboard
+        from botbuddy.cli.onboarding import onboard
         ui = Mock()
         ui.confirm.return_value = False
         ui.multiselect.return_value = []
         bundles = {'hello': {'path': Path('hello.zip'), 'version': '0.1.0'}}
-        with patch('primebuddy.cli.onboarding.bundled_skills', return_value=bundles),\
-                patch('primebuddy.cli.onboarding.load_skill_records', return_value={'old': {'ready': True}}),\
-                patch('primebuddy.cli.onboarding.install') as install, patch('primebuddy.cli.onboarding.configure') as configure:
+        with patch('botbuddy.cli.onboarding.bundled_skills', return_value=bundles),\
+                patch('botbuddy.cli.onboarding.load_skill_records', return_value={'old': {'ready': True}}),\
+                patch('botbuddy.cli.onboarding.install') as install, patch('botbuddy.cli.onboarding.configure') as configure:
             onboard(ui)
         install.assert_not_called()
         configure.assert_not_called()
@@ -817,15 +817,15 @@ class OnboardingTests(unittest.TestCase):
 
     def test_newer_bundle_is_selected_for_upgrade_and_calls_its_own_setup(self):
         from unittest.mock import Mock
-        from primebuddy.cli.onboarding import onboard
+        from botbuddy.cli.onboarding import onboard
         ui = Mock()
         ui.confirm.return_value = False
         ui.multiselect.return_value = [0]
         bundles = {'hello': {'path': Path('hello.zip'), 'version': '0.2.10'}}
-        with patch('primebuddy.cli.onboarding.bundled_skills', return_value=bundles),\
-                patch('primebuddy.cli.onboarding.load_skill_records', return_value={'hello': {'ready': True, 'version': '0.2.9'}}),\
-                patch('primebuddy.cli.onboarding.install', return_value={'ready': True}) as install,\
-                patch('primebuddy.cli.onboarding.configure') as configure:
+        with patch('botbuddy.cli.onboarding.bundled_skills', return_value=bundles),\
+                patch('botbuddy.cli.onboarding.load_skill_records', return_value={'hello': {'ready': True, 'version': '0.2.9'}}),\
+                patch('botbuddy.cli.onboarding.install', return_value={'ready': True}) as install,\
+                patch('botbuddy.cli.onboarding.configure') as configure:
             onboard(ui)
         install.assert_called_once_with('hello.zip', ui, replace=True)
         configure.assert_not_called()
@@ -834,32 +834,32 @@ class OnboardingTests(unittest.TestCase):
 
     def test_explicit_install_later_skips_bundles_and_existing_skill_configuration(self):
         from unittest.mock import Mock
-        from primebuddy.cli.onboarding import onboard
+        from botbuddy.cli.onboarding import onboard
         ui = Mock()
         ui.confirm.return_value = False
         ui.multiselect.return_value = [2]
         bundles = {'hello': {'path': Path('hello.zip'), 'version': '0.1.0'}}
-        with patch('primebuddy.cli.onboarding.bundled_skills', return_value=bundles), \
-                patch('primebuddy.cli.onboarding.load_skill_records', return_value={'old': {'ready': True}}), \
-                patch('primebuddy.cli.onboarding.install') as install, \
-                patch('primebuddy.cli.onboarding.configure') as configure:
+        with patch('botbuddy.cli.onboarding.bundled_skills', return_value=bundles), \
+                patch('botbuddy.cli.onboarding.load_skill_records', return_value={'old': {'ready': True}}), \
+                patch('botbuddy.cli.onboarding.install') as install, \
+                patch('botbuddy.cli.onboarding.configure') as configure:
             onboard(ui)
         self.assertEqual(ui.multiselect.call_args.args[1][-1], 'None')
         install.assert_not_called()
         configure.assert_not_called()
-        self.assertIn('以后运行 primebuddy onboard 可继续', str(ui.info.call_args_list))
+        self.assertIn('以后运行 botbuddy onboard 可继续', str(ui.info.call_args_list))
 
     def test_install_later_conflict_is_resolved_before_any_skill_installation(self):
         from unittest.mock import Mock
-        from primebuddy.cli.onboarding import onboard
+        from botbuddy.cli.onboarding import onboard
         ui = Mock()
         ui.confirm.return_value = False
         ui.multiselect.side_effect = [[0, 1], [0]]
         bundles = {'hello': {'path': Path('hello.zip'), 'version': '0.1.0'}}
-        with patch('primebuddy.cli.onboarding.bundled_skills', return_value=bundles), \
-                patch('primebuddy.cli.onboarding.load_skill_records', return_value={}), \
-                patch('primebuddy.cli.onboarding.install', return_value={'ready': True}) as install, \
-                patch('primebuddy.cli.onboarding.configure') as configure:
+        with patch('botbuddy.cli.onboarding.bundled_skills', return_value=bundles), \
+                patch('botbuddy.cli.onboarding.load_skill_records', return_value={}), \
+                patch('botbuddy.cli.onboarding.install', return_value={'ready': True}) as install, \
+                patch('botbuddy.cli.onboarding.configure') as configure:
             onboard(ui)
         self.assertEqual(ui.multiselect.call_count, 2)
         self.assertIn('不能与具体技能同时选择', str(ui.info.call_args_list))
@@ -868,14 +868,14 @@ class OnboardingTests(unittest.TestCase):
 
     def test_bundle_does_not_downgrade_newer_installed_skill(self):
         from unittest.mock import Mock
-        from primebuddy.cli.onboarding import onboard
+        from botbuddy.cli.onboarding import onboard
         ui = Mock()
         ui.confirm.return_value = False
         ui.multiselect.return_value = [0]
         bundles = {'hello': {'path': Path('hello.zip'), 'version': '0.1.0'}}
-        with patch('primebuddy.cli.onboarding.bundled_skills', return_value=bundles),\
-                patch('primebuddy.cli.onboarding.load_skill_records', return_value={'hello': {'ready': True, 'version': '0.2.0'}}),\
-                patch('primebuddy.cli.onboarding.install') as install, patch('primebuddy.cli.onboarding.configure') as configure:
+        with patch('botbuddy.cli.onboarding.bundled_skills', return_value=bundles),\
+                patch('botbuddy.cli.onboarding.load_skill_records', return_value={'hello': {'ready': True, 'version': '0.2.0'}}),\
+                patch('botbuddy.cli.onboarding.install') as install, patch('botbuddy.cli.onboarding.configure') as configure:
             onboard(ui)
         install.assert_not_called()
         configure.assert_called_once_with('hello', ui)
@@ -883,21 +883,21 @@ class OnboardingTests(unittest.TestCase):
 
     def test_unchecked_upgrade_leaves_installed_skill_untouched(self):
         from unittest.mock import Mock
-        from primebuddy.cli.onboarding import onboard
+        from botbuddy.cli.onboarding import onboard
         ui = Mock()
         ui.confirm.return_value = False
         ui.multiselect.return_value = []
         bundles = {'hello': {'path': Path('hello.zip'), 'version': '0.2.0'}}
-        with patch('primebuddy.cli.onboarding.bundled_skills', return_value=bundles),\
-                patch('primebuddy.cli.onboarding.load_skill_records', return_value={'hello': {'ready': True, 'version': '0.1.0'}}),\
-                patch('primebuddy.cli.onboarding.install') as install, patch('primebuddy.cli.onboarding.configure') as configure:
+        with patch('botbuddy.cli.onboarding.bundled_skills', return_value=bundles),\
+                patch('botbuddy.cli.onboarding.load_skill_records', return_value={'hello': {'ready': True, 'version': '0.1.0'}}),\
+                patch('botbuddy.cli.onboarding.install') as install, patch('botbuddy.cli.onboarding.configure') as configure:
             onboard(ui)
         self.assertEqual(ui.multiselect.call_args.kwargs['default'], [])
         install.assert_not_called()
         configure.assert_not_called()
 
     def test_bundle_versions_are_read_from_the_release_manifest(self):
-        from primebuddy.cli.onboarding import bundled_skills
+        from botbuddy.cli.onboarding import bundled_skills
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / 'resource/bundled').mkdir(parents=True)
@@ -905,11 +905,11 @@ class OnboardingTests(unittest.TestCase):
             with zipfile.ZipFile(archive, 'w') as output:
                 output.writestr('SKILL.md', '---\nname: hello\ndescription: 测试\n---\n问候。')
                 output.writestr('cfg/pkg.yaml', json.dumps({'package_name': 'hello', 'version': '0.2.10'}))
-            with patch('primebuddy.cli.onboarding.application_directory', return_value=root):
+            with patch('botbuddy.cli.onboarding.application_directory', return_value=root):
                 self.assertEqual(bundled_skills(), {'hello': {'path': archive.resolve(), 'version': '0.2.10'}})
 
     def test_invalid_bundled_metadata_is_reported_without_installing(self):
-        from primebuddy.cli.onboarding import bundled_skills
+        from botbuddy.cli.onboarding import bundled_skills
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / 'resource/bundled').mkdir(parents=True)
@@ -920,6 +920,6 @@ class OnboardingTests(unittest.TestCase):
                     with zipfile.ZipFile(archive, 'w') as output:
                         output.writestr('SKILL.md', '---\nname: hello\ndescription: 测试\n---\n问候。')
                         output.writestr('cfg/pkg.yaml', raw)
-                    with patch('primebuddy.cli.onboarding.application_directory', return_value=root),\
+                    with patch('botbuddy.cli.onboarding.application_directory', return_value=root),\
                             self.assertRaisesRegex(SetupError, '随包技能清单无效'):
                         bundled_skills()

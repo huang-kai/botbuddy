@@ -11,9 +11,9 @@ import time
 import unittest
 from unittest.mock import patch
 
-from primebuddy.skills import manager
-from primebuddy.tools import update
-from primebuddy.tools.install import stage_launcher
+from botbuddy.skills import manager
+from botbuddy.tools import update
+from botbuddy.tools.install import stage_launcher
 
 
 PAUSED_RUNNER = '''import importlib.util
@@ -143,14 +143,14 @@ class UpdateRecoveryTests(unittest.TestCase):
                 pass
 
     def test_launcher_stays_present_after_backup_and_before_replacement(self):
-        launcher = self.home / 'bin/primebuddy'
+        launcher = self.home / 'bin/botbuddy'
         launcher.parent.mkdir()
         previous = b'#!/bin/bash\nexit 79\n'
         launcher.write_bytes(previous)
         launcher.chmod(0o755)
         names = self.paths + stage_launcher(self.stage, self.home)
         update.prepare_transaction(self.home, self.stage, names)
-        process = self.paused_runner('.update/old/bin/primebuddy')
+        process = self.paused_runner('.update/old/bin/botbuddy')
         self.assertEqual(launcher.read_bytes(), previous)
         process.kill()
         process.communicate(timeout=5)
@@ -160,7 +160,7 @@ class UpdateRecoveryTests(unittest.TestCase):
         self.assert_original_code()
 
     def test_bootstrap_launcher_recovers_after_source_disappears(self):
-        launcher = self.home / 'bin/primebuddy'
+        launcher = self.home / 'bin/botbuddy'
         launcher.parent.mkdir()
         previous = b'#!/bin/bash\nexit 79\n'
         launcher.write_bytes(previous)
@@ -179,8 +179,8 @@ class UpdateRecoveryTests(unittest.TestCase):
         self.assert_original_code()
 
     def test_interrupted_rollback_keeps_launcher_for_another_recovery(self):
-        from primebuddy.tools import update_transaction as runner
-        launcher = self.home / 'bin/primebuddy'
+        from botbuddy.tools import update_transaction as runner
+        launcher = self.home / 'bin/botbuddy'
         launcher.parent.mkdir()
         previous = b'#!/bin/bash\nexit 79\n'
         launcher.write_bytes(previous)
@@ -189,10 +189,10 @@ class UpdateRecoveryTests(unittest.TestCase):
         update.prepare_transaction(self.home, self.stage, names)
         journal = self.home / '.update/transaction.json'
         data = json.loads(journal.read_text())
-        self.assertEqual(data['entries'][0]['path'], 'bin/primebuddy')
-        backup = self.home / '.update/old/bin/primebuddy'
+        self.assertEqual(data['entries'][0]['path'], 'bin/botbuddy')
+        backup = self.home / '.update/old/bin/botbuddy'
         runner.backup_file(launcher, backup)
-        runner.move(self.home / '.update/new/bin/primebuddy', launcher)
+        runner.move(self.home / '.update/new/bin/botbuddy', launcher)
         data['entries'][0]['state'] = 'installed'
         runner.save(journal, data)
         original = runner.move

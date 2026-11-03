@@ -6,11 +6,11 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from primebuddy.config.storage import SetupError, config_path, write_config
-from primebuddy.skills import manager
-from primebuddy.skills.adapters import adapt_metadata
-from primebuddy.skills.metadata import load_skill_metadata
-from primebuddy.skills.registry import Registry
+from botbuddy.config.storage import SetupError, config_path, write_config
+from botbuddy.skills import manager
+from botbuddy.skills.adapters import adapt_metadata
+from botbuddy.skills.metadata import load_skill_metadata
+from botbuddy.skills.registry import Registry
 
 
 def make_official(root, version='0.3.0'):
@@ -28,7 +28,7 @@ class CompatibilityTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        env = patch.dict(os.environ, PRIMEBUDDY_HOME=str(self.root / 'home'))
+        env = patch.dict(os.environ, BOTBUDDY_HOME=str(self.root / 'home'))
         env.start()
         self.addCleanup(env.stop)
 
@@ -66,7 +66,7 @@ class CompatibilityTests(unittest.TestCase):
         setup.assert_not_called()
 
     def test_manifest_range_and_ordinary_skill(self):
-        from primebuddy.config.compatibility import check_skill, load_release
+        from botbuddy.config.compatibility import check_skill, load_release
         manifest = load_release()
         for version in ('0.4.0', '0.4.99'):
             check_skill({'name': 'diangetai', 'version': version}, manifest)

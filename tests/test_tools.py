@@ -2,7 +2,7 @@ import importlib.util
 from pathlib import Path
 import unittest
 
-spec = importlib.util.spec_from_file_location('voice_e2e', Path(__file__).resolve().parents[1] / 'src/primebuddy/tools/voice_e2e.py')
+spec = importlib.util.spec_from_file_location('voice_e2e', Path(__file__).resolve().parents[1] / 'src/botbuddy/tools/voice_e2e.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 

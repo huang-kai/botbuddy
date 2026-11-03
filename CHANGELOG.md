@@ -1,6 +1,13 @@
 # Changelog
 
-本文件按版本记录 PrimeBuddy 面向用户的功能与修复，最新版本在前。配套技能独立发布；框架与技能的兼容范围以同版本 `release.json` 为准。
+## [1.3.0] - 2026-11-03
+
+- 更名为 BotBuddy，配套技能库更名为 BotSkills。
+- 新安装使用 ~/.botbuddy；旧安装原地升级，保留配置、技能、登录态及运行恢复记录。
+- 兼容 primebuddy 命令、Python 导入、旧环境变量及技能适配键；更新新旧 shell 入口。
+- 发布包改用 botbuddy 名称，首次迁移请使用新安装包的 scripts/install.sh。
+
+本文件按版本记录 BotBuddy 面向用户的功能与修复，最新版本在前。配套技能独立发布；框架与技能的兼容范围以同版本 `release.json` 为准。
 
 ## [1.2.1] - 2026-11-02
 

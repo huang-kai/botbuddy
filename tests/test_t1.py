@@ -6,15 +6,15 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from primebuddy.integrations.primebot import native_agent as agent
-from primebuddy.integrations.primebot.robot_audio import AudioError, audio_session
+from botbuddy.integrations.primebot import native_agent as agent
+from botbuddy.integrations.primebot.robot_audio import AudioError, audio_session
 import sys
 from types import SimpleNamespace as NS
 from unittest.mock import Mock, patch
-from primebuddy.integrations.primebot.sdk_bridge import ENDPOINTS, SdkBridge, sdk_types
-from primebuddy.config.storage import SetupError
-from primebuddy.integrations.primebot.native_voice import NativeVoiceInput
-from primebuddy.providers.errors import TtsNetworkError
+from botbuddy.integrations.primebot.sdk_bridge import ENDPOINTS, SdkBridge, sdk_types
+from botbuddy.config.storage import SetupError
+from botbuddy.integrations.primebot.native_voice import NativeVoiceInput
+from botbuddy.providers.errors import TtsNetworkError
 
 
 class AgentRecoveryTests(unittest.TestCase):
@@ -242,10 +242,10 @@ class BridgeTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.node = Mock()
-        self.node.get_name.return_value = 'primebuddy_test'
+        self.node.get_name.return_value = 'botbuddy_test'
         self.node.get_namespace.return_value = '/'
         self.node.get_publishers_info_by_topic.return_value = []
-        self.node.get_node_names_and_namespaces.return_value = [('primebuddy_test', '/')]
+        self.node.get_node_names_and_namespaces.return_value = [('botbuddy_test', '/')]
         self.node.get_clock.return_value.now.return_value = NS(to_msg=lambda: NS(sec=123, nanosec=0), nanoseconds=123)
         self.bridge = SdkBridge(self.node, 'namespaced')
         self.addCleanup(self.bridge.close)

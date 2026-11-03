@@ -5,13 +5,13 @@ import unittest
 import urllib.error
 import wave
 from unittest.mock import Mock, patch
-from primebuddy.providers.qianwen import build_config
-from primebuddy.providers.qianwen.tts import TtsError, synthesize_wav
+from botbuddy.providers.qianwen import build_config
+from botbuddy.providers.qianwen.tts import TtsError, synthesize_wav
 from pathlib import Path
 import tempfile
 from unittest.mock import Mock
-from primebuddy.voice.speech_cache import SpeechCache, NETWORK_ERROR_PROMPT
-from primebuddy.voice.audio_format import validate_wav
+from botbuddy.voice.speech_cache import SpeechCache, NETWORK_ERROR_PROMPT
+from botbuddy.voice.audio_format import validate_wav
 
 
 class TtsTests(unittest.TestCase):
@@ -105,7 +105,7 @@ class SpeechCacheTests(unittest.TestCase):
             asset.parent.mkdir(parents=True)
             asset.write_bytes(b'invalid')
             synth = Mock()
-            with patch('primebuddy.voice.speech_cache.application_directory', return_value=Path(root)):
+            with patch('botbuddy.voice.speech_cache.application_directory', return_value=Path(root)):
                 with self.assertRaises(TtsError):
                     SpeechCache(Path(root) / 'cache', synth).prepare(NETWORK_ERROR_PROMPT)
             synth.assert_not_called()

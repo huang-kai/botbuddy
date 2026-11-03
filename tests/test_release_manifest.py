@@ -7,10 +7,10 @@ import unittest
 from unittest.mock import patch
 import zipfile
 
-from primebuddy import __version__
-from primebuddy.config.compatibility import load_release
-from primebuddy.tools import build_release as builder
-from primebuddy.tools.install import stage_application
+from botbuddy import __version__
+from botbuddy.config.compatibility import load_release
+from botbuddy.tools import build_release as builder
+from botbuddy.tools.install import stage_application
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,12 +25,12 @@ class ReleaseManifestTests(unittest.TestCase):
         (self.source / 'release.json').write_bytes((ROOT / 'release.json').read_bytes())
         (self.source / 'CHANGELOG.md').write_text(f'# 更新日志\n\n## [{__version__}] - 2026-10-29\n\n本次更新。\n\n## 1.0.0\n\n旧版本。\n')
         self.skills = []
-        for name, version in [('diangetai', '0.4.1'), ('yeelight', '0.3.1'), ('chengyu-chain', '0.2.0')]:
+        for name, version in [('diangetai', '0.4.2'), ('yeelight', '0.3.2'), ('chengyu-chain', '0.2.1')]:
             skill = self.root / name
             (skill / 'cfg').mkdir(parents=True)
             (skill / 'SKILL.md').write_text('---\nname: ' + name + '\ndescription: 测试\n---\n测试。')
             (skill / 'main.py').write_text('')
-            (skill / 'cfg/pkg.yaml').write_text(json.dumps({'version': version, 'primebuddy': {
+            (skill / 'cfg/pkg.yaml').write_text(json.dumps({'version': version, 'botbuddy': {
                 'version': 1, 'cli': {'configure': ['main.py', 'configure']}}}))
             self.skills.append(skill)
 
@@ -38,14 +38,14 @@ class ReleaseManifestTests(unittest.TestCase):
         with patch.object(builder, 'ROOT', self.source):
             paths = builder.build_releases(self.root / 'output', self.skills, release=True)
         self.assertEqual({path.name for path in paths}, {
-            f'primebuddy-{__version__}.rpk', 'diangetai-0.4.1.rpk', 'yeelight-0.3.1.rpk', 'chengyu-chain-0.2.0.rpk', f'primebuddy-{__version__}-core.rpk', 'release.json', 'release-notes.md', 'SHA256SUMS'})
+            f'botbuddy-{__version__}.rpk', 'diangetai-0.4.2.rpk', 'yeelight-0.3.2.rpk', 'chengyu-chain-0.2.1.rpk', f'botbuddy-{__version__}-core.rpk', 'release.json', 'release-notes.md', 'SHA256SUMS'})
         output = self.root / 'output'
         manifest = load_release(output / 'release.json')
-        self.assertEqual(manifest['framework']['sha256'], hashlib.sha256((output / f'primebuddy-{__version__}.rpk').read_bytes()).hexdigest())
-        with zipfile.ZipFile(output / f'primebuddy-{__version__}.rpk') as archive:
+        self.assertEqual(manifest['framework']['sha256'], hashlib.sha256((output / f'botbuddy-{__version__}.rpk').read_bytes()).hexdigest())
+        with zipfile.ZipFile(output / f'botbuddy-{__version__}.rpk') as archive:
             self.assertIn('main.py', archive.namelist())
             self.assertEqual(archive.read('cfg/pkg.yaml'), (ROOT / 'cfg/pkg.yaml').read_bytes())
-            self.assertFalse(any(name.startswith('primebuddy/') for name in archive.namelist()))
+            self.assertFalse(any(name.startswith('botbuddy/') for name in archive.namelist()))
             embedded = json.loads(archive.read('release.json'))
             self.assertNotIn('framework', embedded)
             self.assertEqual(embedded, {key: value for key, value in manifest.items() if key not in ('framework', 'framework_core')})
@@ -61,13 +61,13 @@ class ReleaseManifestTests(unittest.TestCase):
                     self.assertNotIn(member, archive.namelist())
                 else:
                     self.assertEqual(archive.read(member), content)
-                self.assertEqual(artifact['url'], f'https://github.com/huang-kai/primebuddy/releases/download/v{__version__}/' + artifact['filename'])
+                self.assertEqual(artifact['url'], f'https://github.com/huang-kai/botbuddy/releases/download/v{__version__}/' + artifact['filename'])
         notes = (output / 'release-notes.md').read_text()
         self.assertIn('本次更新。', notes)
         self.assertNotIn('旧版本。', notes)
         self.assertIn('0.4.0', notes)
         self.assertIn('<0.5.0', notes)
-        self.assertTrue(notes.startswith(f'# PrimeBuddy {__version__} - 2026-10-29\n'))
+        self.assertTrue(notes.startswith(f'# BotBuddy {__version__} - 2026-10-29\n'))
         self.assertEqual(notes.count('### Compatibility'), 1)
         self.assertEqual(notes.count('| Skill | Supported versions | Recommended |'), 1)
 
@@ -102,7 +102,7 @@ class ReleaseManifestTests(unittest.TestCase):
         manifest['skills']['diangetai']['recommended_version'] = '0.4.1'
         with patch.object(builder, 'ROOT', self.source):
             notes = builder.release_notes(manifest)
-        self.assertTrue(notes.startswith(f'# PrimeBuddy {__version__} - 2026-10-29\n'))
+        self.assertTrue(notes.startswith(f'# BotBuddy {__version__} - 2026-10-29\n'))
         self.assertEqual(notes.count('### Compatibility'), 1)
         self.assertEqual(notes.count('| Skill | Supported versions | Recommended |'), 1)
         self.assertIn('| `diangetai` | `>=0.4.0, <0.5.0` | `0.4.1` |', notes)
@@ -119,7 +119,7 @@ class ReleaseManifestTests(unittest.TestCase):
                     builder.build_releases(self.root / 'output', skills, framework=framework, release=True)
             path = self.skills[0] / 'cfg/pkg.yaml'
             metadata = json.loads(path.read_text())
-            metadata['version'] = '0.4.2'
+            metadata['version'] = '0.4.3'
             path.write_text(json.dumps(metadata))
             with self.assertRaises(ValueError):
                 builder.build_releases(self.root / 'output', self.skills, release=True)

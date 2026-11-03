@@ -11,7 +11,7 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from primebuddy.skills import processes
+from botbuddy.skills import processes
 
 
 @unittest.skipUnless(os.name == 'posix', 'POSIX 进程组')

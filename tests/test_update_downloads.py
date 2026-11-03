@@ -12,9 +12,9 @@ from unittest.mock import Mock, patch
 import urllib.error
 import zipfile
 
-from primebuddy.config.compatibility import release_url
-from primebuddy.config.storage import SetupError, write_config
-from primebuddy.tools import update
+from botbuddy.config.compatibility import release_url
+from botbuddy.config.storage import SetupError, write_config
+from botbuddy.tools import update
 
 
 def artifact(name, content, version='1.1.0'):
@@ -35,10 +35,10 @@ class UpdateDownloadTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.home = Path(self.temporary.name).resolve()
-        env = patch.dict(os.environ, PRIMEBUDDY_HOME=str(self.home))
+        env = patch.dict(os.environ, BOTBUDDY_HOME=str(self.home))
         env.start()
         self.addCleanup(env.stop)
-        code = self.home / 'src/primebuddy/__init__.py'
+        code = self.home / 'src/botbuddy/__init__.py'
         code.parent.mkdir(parents=True)
         code.write_text("__version__ = '1.0.0'\n")
         write_config(self.home / 'config.yaml', {'skills': {'directories': []}})
@@ -50,7 +50,7 @@ class UpdateDownloadTests(unittest.TestCase):
         self.manifest = {'schema_version': 1, 'version': '1.1.0', 'skills': {
             'diangetai': {'min_version': '0.4.0', 'max_version': '0.5.0', 'recommended_version': '0.4.0',
                          'artifact': artifact('diangetai-0.4.0.rpk', b'skill')}},
-            'framework': artifact('primebuddy-1.1.0.rpk', self.payload)}
+            'framework': artifact('botbuddy-1.1.0.rpk', self.payload)}
 
     def snapshot(self):
         return {str(path.relative_to(self.home)): (path.read_bytes(), path.stat().st_mode & 0o777)
@@ -62,10 +62,10 @@ class UpdateDownloadTests(unittest.TestCase):
             with self.subTest(version=version), patch.object(update, 'fetch_bytes', side_effect=[json.dumps(api).encode(), raw]) as fetch:
                 self.assertEqual(update.fetch_release(version), self.manifest)
             self.assertEqual(fetch.call_args_list[0].args,
-                             ('https://api.github.com/repos/huang-kai/primebuddy/releases/' + suffix, 1024 * 1024))
+                             ('https://api.github.com/repos/huang-kai/botbuddy/releases/' + suffix, 1024 * 1024))
             self.assertEqual(fetch.call_args_list[0].kwargs, {'api': True})
             self.assertEqual(fetch.call_args_list[1].args,
-                             ('https://github.com/huang-kai/primebuddy/releases/download/v1.1.0/release.json', 65536))
+                             ('https://github.com/huang-kai/botbuddy/releases/download/v1.1.0/release.json', 65536))
 
     def test_prerelease_draft_and_wrong_tags_stop_before_manifest_download(self):
         for change, requested in [({'prerelease': True}, None), ({'draft': True}, None),
@@ -101,7 +101,7 @@ class UpdateDownloadTests(unittest.TestCase):
         cases = []
         wrong_version = copy.deepcopy(self.manifest)
         wrong_version['version'] = '1.2.0'
-        wrong_version['framework'] = artifact('primebuddy-1.2.0.rpk', self.payload, '1.2.0')
+        wrong_version['framework'] = artifact('botbuddy-1.2.0.rpk', self.payload, '1.2.0')
         wrong_version['skills']['diangetai']['artifact'] = artifact('diangetai-0.4.0.rpk', b'skill', '1.2.0')
         cases.append(wrong_version)
         for kind in ('framework', 'skill'):
@@ -154,7 +154,7 @@ class UpdateDownloadTests(unittest.TestCase):
         for content, matching_hash in [(b'corrupt download', False), (b'not a ZIP archive', True)]:
             manifest = copy.deepcopy(self.manifest)
             if matching_hash:
-                manifest['framework'] = artifact('primebuddy-1.1.0.rpk', content)
+                manifest['framework'] = artifact('botbuddy-1.1.0.rpk', content)
             api, raw = release_response(manifest)
             before = self.snapshot()
             with self.subTest(matching_hash=matching_hash), \

@@ -70,7 +70,7 @@ class RobotEnvironmentTests(unittest.TestCase):
             self.assertEqual(self.run_shell(script).returncode, 7)
 
     def test_remote_environment_preserves_command_stdin(self):
-        from primebuddy.integrations.primebot.native_sdk import shell_environment
+        from botbuddy.integrations.primebot.native_sdk import shell_environment
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             self.fixture(root, 'T1')

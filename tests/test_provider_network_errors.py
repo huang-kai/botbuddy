@@ -8,13 +8,13 @@ import unittest
 import urllib.error
 from unittest.mock import MagicMock, Mock, patch
 
-from primebuddy.providers.errors import (
+from botbuddy.providers.errors import (
     AsrError, AsrNetworkError, ProviderNetworkError, TtsError, TtsNetworkError,
     is_network_error,
 )
-from primebuddy.providers.qianwen.asr import recognize
-from primebuddy.providers.qianwen.llm import request_message
-from primebuddy.providers.qianwen.tts import synthesize_wav
+from botbuddy.providers.qianwen.asr import recognize
+from botbuddy.providers.qianwen.llm import request_message
+from botbuddy.providers.qianwen.tts import synthesize_wav
 
 
 SECRET = 'private-network-error-canary'

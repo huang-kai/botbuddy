@@ -13,13 +13,13 @@ import unittest
 from unittest.mock import patch
 import zipfile
 
-from primebuddy.config.storage import SetupError, config_path, write_config
-from primebuddy.core.engine import Context, execute
-from primebuddy.core.planner import plan
-from primebuddy.skills import manager
-from primebuddy.skills.registry import Registry
-from primebuddy.skills.runtime import run_script
-from primebuddy.tools.build_release import skill_zip
+from botbuddy.config.storage import SetupError, config_path, write_config
+from botbuddy.core.engine import Context, execute
+from botbuddy.core.planner import plan
+from botbuddy.skills import manager
+from botbuddy.skills.registry import Registry
+from botbuddy.skills.runtime import run_script
+from botbuddy.tools.build_release import skill_zip
 
 
 def create_skill(root, name='hello', body='向用户问候。'):
@@ -34,13 +34,13 @@ class AgentSkillTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.home = self.root / 'home'
-        environment = patch.dict(os.environ, PRIMEBUDDY_HOME=str(self.home))
+        environment = patch.dict(os.environ, BOTBUDDY_HOME=str(self.home))
         environment.start()
         self.addCleanup(environment.stop)
 
     def test_document_only_skill_needs_no_package_dependencies_or_python_hooks(self):
         source = create_skill(self.root / 'hello')
-        with patch('primebuddy.skills.manager.load_entry') as load, redirect_stdout(io.StringIO()):
+        with patch('botbuddy.skills.manager.load_entry') as load, redirect_stdout(io.StringIO()):
             record = manager.install(source)
             catalog = Registry().catalog()
         load.assert_not_called()
@@ -58,13 +58,13 @@ class AgentSkillTests(unittest.TestCase):
         pending = create_skill(self.home / 'skills/pending', name='pending')
         (pending / 'src').mkdir()
         (pending / 'src/configure.py').write_text('raise SystemExit(0)\n')
-        write_config(pending / 'cfg/pkg.yaml', {'primebuddy': {'configure': ['src/configure.py']}})
+        write_config(pending / 'cfg/pkg.yaml', {'botbuddy': {'configure': ['src/configure.py']}})
         missing = create_skill(self.home / 'skills/missing', name='missing')
-        write_config(missing / 'cfg/pkg.yaml', {'primebuddy': {'requires': {'config': ['account']}}})
+        write_config(missing / 'cfg/pkg.yaml', {'botbuddy': {'requires': {'config': ['account']}}})
 
         # 重新从磁盘建立注册表，再检查真正交给模型的首轮请求。
         registry = Registry()
-        with patch('primebuddy.core.planner.chat', return_value={'role': 'assistant', 'content': '你好。'}) as chat:
+        with patch('botbuddy.core.planner.chat', return_value={'role': 'assistant', 'content': '你好。'}) as chat:
             plan('你好', registry)
         system = chat.call_args.args[0][0]['content']
         catalog = json.loads(system.split('\n可发现技能：\n', 1)[1])
@@ -127,11 +127,11 @@ class AgentSkillTests(unittest.TestCase):
         source = create_skill(self.home / 'skills/hello')
         (source / 'cfg').mkdir()
         (source / 'scripts').mkdir()
-        write_config(source / 'cfg/pkg.yaml', {'primebuddy': {'configure': ['scripts/configure.py'],
+        write_config(source / 'cfg/pkg.yaml', {'botbuddy': {'configure': ['scripts/configure.py'],
                                                            'requires': {'config': ['greeting']}}})
         (source / 'scripts/configure.py').write_text('''import os
-from primebuddy.config.storage import write_config
-write_config(os.environ['PRIMEBUDDY_SKILL_CONFIG'], {'greeting': '你好'})
+from botbuddy.config.storage import write_config
+write_config(os.environ['BOTBUDDY_SKILL_CONFIG'], {'greeting': '你好'})
 ''')
         self.assertEqual(Registry().catalog(), [])
         self.assertTrue(manager.configure('hello', None))
@@ -141,12 +141,12 @@ write_config(os.environ['PRIMEBUDDY_SKILL_CONFIG'], {'greeting': '你好'})
     def test_dependency_gates_are_visible_in_inventory_without_loading_code(self):
         source = create_skill(self.home / 'skills/hello')
         (source / 'cfg').mkdir()
-        write_config(source / 'cfg/pkg.yaml', {'primebuddy': {'requires': {'env': ['PRIMEBUDDY_TEST_ONLY_TOKEN']}}})
+        write_config(source / 'cfg/pkg.yaml', {'botbuddy': {'requires': {'env': ['BOTBUDDY_TEST_ONLY_TOKEN']}}})
         with patch.dict(os.environ):
-            os.environ.pop('PRIMEBUDDY_TEST_ONLY_TOKEN', None)
+            os.environ.pop('BOTBUDDY_TEST_ONLY_TOKEN', None)
             self.assertIn('hello', manager.discover_skill_records())
             self.assertEqual(Registry().catalog(), [])
-            os.environ['PRIMEBUDDY_TEST_ONLY_TOKEN'] = 'fixture'
+            os.environ['BOTBUDDY_TEST_ONLY_TOKEN'] = 'fixture'
             self.assertEqual(Registry().catalog()[0]['name'], 'hello')
 
     def test_failed_console_upgrade_restores_previous_configuration(self):
@@ -158,16 +158,16 @@ write_config(os.environ['PRIMEBUDDY_SKILL_CONFIG'], {'greeting': '你好'})
         before = manager.load_skill_records()
         (source / 'cfg').mkdir()
         (source / 'src').mkdir()
-        write_config(source / 'cfg/pkg.yaml', {'primebuddy': {'configure': ['src/configure.py']}})
+        write_config(source / 'cfg/pkg.yaml', {'botbuddy': {'configure': ['src/configure.py']}})
         (source / 'src/configure.py').write_text('''import os
 import sys
-from primebuddy.config.storage import write_config
-write_config(os.environ['PRIMEBUDDY_SKILL_CONFIG'], {'keep': '不完整新配置'})
+from botbuddy.config.storage import write_config
+write_config(os.environ['BOTBUDDY_SKILL_CONFIG'], {'keep': '不完整新配置'})
 sys.exit(1)
 ''')
         with redirect_stdout(io.StringIO()), self.assertRaises(SetupError):
             manager.install(source, ui=lambda: None, replace=True)
-        from primebuddy.config.storage import read_config
+        from botbuddy.config.storage import read_config
         self.assertEqual(read_config(config), {'keep': '原配置'})
         self.assertEqual(manager.load_skill_records(), before)
 
@@ -204,7 +204,7 @@ sys.exit(1)
         registry = self.script_registry('raise AssertionError("不应运行")\n')
         proposal = {'reply': '', 'tasks': [{'id': 'one', 'skill': 'hello', 'action': 'script',
                      'args': {'path': 'src/task.py', 'arguments': []}, 'after': []}]}
-        with patch('primebuddy.skills.runtime.run_process') as process:
+        with patch('botbuddy.skills.runtime.run_process') as process:
             result = execute(proposal, registry, Context(), lambda _: None)
         process.assert_not_called()
         self.assertTrue(result['one']['simulated'])

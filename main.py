@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PrimeBuddy 主入口：加载本地源码和应用依赖。"""
+"""BotBuddy 主入口：加载本地源码和应用依赖。"""
 from pathlib import Path
 import sys
 
@@ -7,11 +7,11 @@ ROOT = Path(__file__).resolve().parent
 sys.path[:0] = [str(ROOT / 'src'), str(ROOT / '_deps')]
 
 if __name__ == '__main__':
-    from primebuddy.integrations.primebot.native_sdk import bootstrap
+    from botbuddy.integrations.primebot.native_sdk import bootstrap
     bootstrap()
     if sys.argv[1:2] == ['install']:
-        from primebuddy.tools.install import main
+        from botbuddy.tools.install import main
         del sys.argv[1]
     else:
-        from primebuddy.cli.commands import main
+        from botbuddy.cli.commands import main
     raise SystemExit(main())

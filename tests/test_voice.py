@@ -2,20 +2,20 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-from primebuddy.integrations.primebot.native_voice import NativeVoiceInput
+from botbuddy.integrations.primebot.native_voice import NativeVoiceInput
 import contextlib
 import copy
 from pathlib import Path
-from primebuddy.core.engine import Context, execute, CleanupUnconfirmed
-from primebuddy.skills.registry import Registry
-from primebuddy.integrations.primebot.robot_audio import RobotAudio, AudioError
+from botbuddy.core.engine import Context, execute, CleanupUnconfirmed
+from botbuddy.skills.registry import Registry
+from botbuddy.integrations.primebot.robot_audio import RobotAudio, AudioError
 import json
 from unittest.mock import Mock, patch
 import urllib.error
-from primebuddy.providers.qianwen.asr import request_payload, recognize, MODEL, NEW_MODEL, AsrError
-from primebuddy.core.grounding import confirmation_for, confirmation_answer, vocabulary
-from primebuddy.providers.errors import ProviderNetworkError, AsrNetworkError, TtsNetworkError
-from primebuddy.voice.speech_cache import NETWORK_ERROR_PROMPT
+from botbuddy.providers.qianwen.asr import request_payload, recognize, MODEL, NEW_MODEL, AsrError
+from botbuddy.core.grounding import confirmation_for, confirmation_answer, vocabulary
+from botbuddy.providers.errors import ProviderNetworkError, AsrNetworkError, TtsNetworkError
+from botbuddy.voice.speech_cache import NETWORK_ERROR_PROMPT
 
 
 class VoiceTests(unittest.TestCase):
@@ -26,24 +26,24 @@ class VoiceTests(unittest.TestCase):
 
     def test_listening_window_is_thirty_seconds(self):
         mic = self.microphone()
-        with patch('primebuddy.integrations.primebot.native_voice.time.monotonic', return_value=100):
+        with patch('botbuddy.integrations.primebot.native_voice.time.monotonic', return_value=100):
             mic.listen(0)
         self.assertEqual(mic.deadline, 130)
-        with patch('primebuddy.integrations.primebot.native_voice.time.monotonic', return_value=111):
+        with patch('botbuddy.integrations.primebot.native_voice.time.monotonic', return_value=111):
             mic.check_health()
         self.assertEqual(mic.phase, 'listening')
 
     def test_empty_recognition_resumes_without_extending_or_reopening_deadline(self):
         mic = self.microphone()
         mic.conversation_state = 1
-        with patch('primebuddy.integrations.primebot.native_voice.time.monotonic', return_value=100):
+        with patch('botbuddy.integrations.primebot.native_voice.time.monotonic', return_value=100):
             mic.listen(0)
         mic.idle(0)
-        with patch('primebuddy.integrations.primebot.native_voice.time.monotonic', return_value=110):
+        with patch('botbuddy.integrations.primebot.native_voice.time.monotonic', return_value=110):
             mic.listen(0, reset_deadline=False)
         self.assertEqual((mic.phase, mic.deadline), ('listening', 130))
         mic.idle(0)
-        with patch('primebuddy.integrations.primebot.native_voice.time.monotonic', return_value=131):
+        with patch('botbuddy.integrations.primebot.native_voice.time.monotonic', return_value=131):
             mic.listen(0, reset_deadline=False)
         self.assertEqual(mic.phase, 'muted')
         self.assertEqual(mic.events.get_nowait()[1], 'timeout')
@@ -154,7 +154,7 @@ class VoiceTests(unittest.TestCase):
     def test_timeout_does_not_reopen_from_cached_or_repeated_listening(self):
         mic = self.microphone()
         mic.conversation_state = 1
-        with patch('primebuddy.integrations.primebot.native_voice.time.monotonic', return_value=100):
+        with patch('botbuddy.integrations.primebot.native_voice.time.monotonic', return_value=100):
             mic.listen(0)
         mic.timeout()
         self.assertEqual(mic.events.get_nowait()[1], 'timeout')
@@ -165,7 +165,7 @@ class VoiceTests(unittest.TestCase):
         self.assertTrue(mic.events.empty())
         self.assertEqual(mic.deadline, 130)
         mic.on_state(SimpleNamespace(main_state=SimpleNamespace(value=0)))
-        with patch('primebuddy.integrations.primebot.native_voice.time.monotonic', return_value=140):
+        with patch('botbuddy.integrations.primebot.native_voice.time.monotonic', return_value=140):
             mic.on_state(SimpleNamespace(main_state=SimpleNamespace(value=1)))
         self.assertEqual(mic.events.get_nowait()[1], 'native_listening')
         self.assertEqual(mic.deadline, 170)
@@ -175,7 +175,7 @@ class VoiceTests(unittest.TestCase):
         mic.timeout()
         self.assertEqual(mic.events.get_nowait()[1], 'timeout')
         # 明确的业务播放结束仍能直接开窗，不依赖原厂再次转换状态。
-        with patch('primebuddy.integrations.primebot.native_voice.time.monotonic', return_value=200):
+        with patch('botbuddy.integrations.primebot.native_voice.time.monotonic', return_value=200):
             mic.listen(0)
         self.assertEqual(mic.phase, 'listening')
         self.assertEqual(mic.deadline, 230)
@@ -201,7 +201,7 @@ class VoiceTests(unittest.TestCase):
     def test_known_native_speaking_rejects_audio_without_extending_window(self):
         mic = self.microphone()
         mic.conversation_state = 3
-        with patch('primebuddy.integrations.primebot.native_voice.time.monotonic', return_value=100):
+        with patch('botbuddy.integrations.primebot.native_voice.time.monotonic', return_value=100):
             mic.listen(0)
         for state in (1, 2, 3):
             mic.on_audio(self.audio(state))
@@ -220,7 +220,7 @@ class VoiceTests(unittest.TestCase):
     def test_native_speaking_discards_started_segment_until_new_begin(self):
         mic = self.microphone()
         mic.conversation_state = 1
-        with patch('primebuddy.integrations.primebot.native_voice.time.monotonic', return_value=100):
+        with patch('botbuddy.integrations.primebot.native_voice.time.monotonic', return_value=100):
             mic.listen(0)
         mic.on_audio(self.audio(1))
         self.assertIsNotNone(mic.buffer)
@@ -269,9 +269,9 @@ class VoiceTests(unittest.TestCase):
     def test_incomplete_interrupt_does_not_timeout_the_normal_conversation(self):
         mic = self.microphone()
         mic.monitor_interrupt(0)
-        with patch('primebuddy.integrations.primebot.native_voice.time.monotonic', return_value=100):
+        with patch('botbuddy.integrations.primebot.native_voice.time.monotonic', return_value=100):
             mic.on_audio(self.audio(1))
-        with patch('primebuddy.integrations.primebot.native_voice.time.monotonic', return_value=104):
+        with patch('botbuddy.integrations.primebot.native_voice.time.monotonic', return_value=104):
             mic.check_health()
         self.assertIsNone(mic.buffer)
         self.assertTrue(mic.events.empty())
@@ -396,7 +396,7 @@ class DialogueTests(unittest.TestCase):
                  on_asr=None, on_plan=None, on_prepare=None, cancel_check=None, registry=None, simulate=True,
                  on_play=None, ensure_audio_idle=None):
         import tempfile
-        from primebuddy.voice.session import serve
+        from botbuddy.voice.session import serve
         registry = registry or VoiceRegistry()
         trace = [] if trace is None else trace
         def prepare_voice(context):
@@ -480,29 +480,29 @@ class DialogueTests(unittest.TestCase):
                      'devices': [{'name': '天际线灯', 'room': '客厅'}]}}
         with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
             patches = {
-                'primebuddy.integrations.primebot.device.detect_device': lambda: SimpleNamespace(
+                'botbuddy.integrations.primebot.device.detect_device': lambda: SimpleNamespace(
                     series=robot_series, sku='T1-2X' if robot_series == 'T1' else 'Q1-1X', soc_index='1'),
-                'primebuddy.integrations.primebot.native_voice.NativeVoiceInput': Microphone,
-                'primebuddy.voice.audio.AudioOutput': audio_output,
-                'primebuddy.integrations.primebot.native_agent.voice_only_agent': lambda _: contextlib.nullcontext(),
-                'primebuddy.integrations.primebot.robot_audio.audio_session': lambda _: contextlib.nullcontext(robot),
-                'primebuddy.integrations.primebot.robot_audio.connect_soc0': lambda _: None,
-                'primebuddy.integrations.primebot.robot_audio.check_cancel': cancel_check or (lambda: None),
-                'primebuddy.integrations.primebot.speech_audio.native_preflight': lambda: None,
-                'primebuddy.integrations.primebot.speech_audio.encode_asr_wav': lambda *a, **k: b'wav',
-                'primebuddy.config.models.load_model': lambda *args: {'provider': 'qianwen', 'model': 'test-only'},
-                'primebuddy.providers.transcribe_wav': asr,
-                'primebuddy.config.runtime.private_runtime': lambda: Path(directory),
-                'primebuddy.voice.session.SpeechCache': lambda _: SimpleNamespace(prepare=prepare),
+                'botbuddy.integrations.primebot.native_voice.NativeVoiceInput': Microphone,
+                'botbuddy.voice.audio.AudioOutput': audio_output,
+                'botbuddy.integrations.primebot.native_agent.voice_only_agent': lambda _: contextlib.nullcontext(),
+                'botbuddy.integrations.primebot.robot_audio.audio_session': lambda _: contextlib.nullcontext(robot),
+                'botbuddy.integrations.primebot.robot_audio.connect_soc0': lambda _: None,
+                'botbuddy.integrations.primebot.robot_audio.check_cancel': cancel_check or (lambda: None),
+                'botbuddy.integrations.primebot.speech_audio.native_preflight': lambda: None,
+                'botbuddy.integrations.primebot.speech_audio.encode_asr_wav': lambda *a, **k: b'wav',
+                'botbuddy.config.models.load_model': lambda *args: {'provider': 'qianwen', 'model': 'test-only'},
+                'botbuddy.providers.transcribe_wav': asr,
+                'botbuddy.config.runtime.private_runtime': lambda: Path(directory),
+                'botbuddy.voice.session.SpeechCache': lambda _: SimpleNamespace(prepare=prepare),
             }
             for name, value in patches.items():
                 stack.enter_context(patch(name, value))
             if executor is not None:
-                stack.enter_context(patch('primebuddy.voice.session.execute',
+                stack.enter_context(patch('botbuddy.voice.session.execute',
                     side_effect=lambda *args, **kwargs: executor(*args, microphone=microphones[0],
                                                                   trace=trace, **kwargs)))
             if bridge:
-                stack.enter_context(patch('primebuddy.integrations.primebot.sdk_bridge.SdkBridge', return_value=bridge))
+                stack.enter_context(patch('botbuddy.integrations.primebot.sdk_bridge.SdkBridge', return_value=bridge))
             stack.enter_context(patch.object(registry, 'planning_context', return_value=snapshot))
             stack.enter_context(patch.object(registry.load(tool), 'run', side_effect=run))
             plans = iter(proposals)
@@ -515,10 +515,10 @@ class DialogueTests(unittest.TestCase):
                     raise proposal
                 return proposal
             if agent_messages is None:
-                planner = stack.enter_context(patch('primebuddy.voice.session.plan', side_effect=propose))
+                planner = stack.enter_context(patch('botbuddy.voice.session.plan', side_effect=propose))
             else:
                 messages = iter(agent_messages)
-                planner = stack.enter_context(patch('primebuddy.core.planner.chat', side_effect=lambda *args: next(messages)))
+                planner = stack.enter_context(patch('botbuddy.core.planner.chat', side_effect=lambda *args: next(messages)))
             serve(registry, Context(simulate=simulate), sdk_bridge='namespaced' if bridge else 'off')
             return trace, planner.call_args_list
 
@@ -536,7 +536,7 @@ class DialogueTests(unittest.TestCase):
             trace = []
             registry.load('diangetai')._verify = Mock(side_effect=lambda context: trace.append(('verified', True)))
             message = '成语接龙因两分钟无回应结束。' if reason == 'inactivity' else '成语接龙已结束。'
-            with self.subTest(reason=reason), patch('primebuddy.voice.session.continue_plan') as continuation:
+            with self.subTest(reason=reason), patch('botbuddy.voice.session.continue_plan') as continuation:
                 self.dialogue(['开始游戏', '退出语音助手'], [proposal], registry=registry, trace=trace,
                     tool='diangetai', simulate=False,
                     result={'status': 'success', 'message': message, 'reason': reason, 'resources_released': True})
@@ -572,7 +572,7 @@ class DialogueTests(unittest.TestCase):
         registry = VoiceRegistry()
         registry.skills['diangetai']['actions']['play']['interaction'] = 'exclusive'
         bridge = Mock()
-        bridge.topic, bridge.service_name = '/primebuddy/asr_result', '/primebuddy/PlayTts'
+        bridge.topic, bridge.service_name = '/botbuddy/asr_result', '/botbuddy/PlayTts'
         proposal = {'reply': '', 'tasks': [{'id': 'game', 'skill': 'diangetai', 'action': 'play',
                     'args': {'artist': '', 'song': '交互应用测试'}, 'after': []}]}
         calls = []
@@ -599,8 +599,8 @@ class DialogueTests(unittest.TestCase):
                 trace.append(('resources_released', True))
             registry.load('diangetai')._verify = Mock(side_effect=verify)
             return {'game': {'status': 'success', 'message': '游戏已结束'}}
-        from primebuddy.core.planner import continue_plan
-        with patch('primebuddy.voice.session.continue_plan', wraps=continue_plan) as continuation:
+        from botbuddy.core.planner import continue_plan
+        with patch('botbuddy.voice.session.continue_plan', wraps=continue_plan) as continuation:
             trace, planned = self.dialogue(['开始游戏', '打开天际线灯', '退出语音助手'],
                 [proposal, self.proposal()], executor=executor, registry=registry, bridge=bridge, simulate=False)
         self.assertEqual(calls, ['game', 'light'])
@@ -631,7 +631,7 @@ class DialogueTests(unittest.TestCase):
                     self.assertEqual(microphones[0].phase, 'exclusive')
                     raise KeyboardInterrupt()
             with self.subTest(failure=failure), self.assertRaises(KeyboardInterrupt), \
-                    patch('primebuddy.voice.session.INTERACTION_RECOVERY_INTERVAL', 0):
+                    patch('botbuddy.voice.session.INTERACTION_RECOVERY_INTERVAL', 0):
                 self.dialogue(['开始游戏'], [proposal], executor=executor, registry=registry,
                               trace=trace, simulate=False, cancel_check=shutdown_after_retry)
             self.assertEqual(microphones[0].generation, 1)
@@ -663,7 +663,7 @@ class DialogueTests(unittest.TestCase):
                     context.cancelled.set()
                     raise CleanupUnconfirmed('游戏异常退出，设备清理未确认')
                 return {'game': {'status': 'success', 'message': '整局结束'}}
-            with self.subTest(failure=failure), patch('primebuddy.voice.session.INTERACTION_RECOVERY_INTERVAL', 0):
+            with self.subTest(failure=failure), patch('botbuddy.voice.session.INTERACTION_RECOVERY_INTERVAL', 0):
                 self.dialogue(['开始游戏', '打开天际线灯', '退出语音助手'], [proposal, self.proposal()],
                               executor=executor, registry=registry, trace=trace, simulate=False)
             self.assertEqual(attempts, [failure == 'execute', True])
@@ -688,16 +688,16 @@ class DialogueTests(unittest.TestCase):
     def test_asr_network_failure_uses_offline_notice_and_suppresses_repeats(self):
         trace, calls = self.dialogue([AsrNetworkError(), AsrNetworkError(), '退出语音助手'], [])
         self.assertEqual([event[1] for event in trace if event[0] == 'tts'],
-                         ['PrimeBuddy 已启动，你想做什么？', NETWORK_ERROR_PROMPT, '语音助手已退出。'])
+                         ['BotBuddy 已启动，你想做什么？', NETWORK_ERROR_PROMPT, '语音助手已退出。'])
         self.assertEqual(calls, [])
 
     def test_empty_asr_does_not_speak_publish_or_call_planner(self):
         bridge = Mock()
-        bridge.topic, bridge.service_name = '/primebuddy/asr_result', '/primebuddy/PlayTts'
+        bridge.topic, bridge.service_name = '/botbuddy/asr_result', '/botbuddy/PlayTts'
         trace, calls = self.dialogue(['', '  ', '你好', '退出语音助手'],
                                     [{'reply': '你好。', 'tasks': []}], bridge=bridge)
         self.assertEqual([event[1] for event in trace if event[0] == 'tts'],
-                         ['PrimeBuddy 已启动，你想做什么？', '你好。', '语音助手已退出。'])
+                         ['BotBuddy 已启动，你想做什么？', '你好。', '语音助手已退出。'])
         self.assertEqual([call.args[0] for call in calls], ['你好'])
         self.assertEqual([call.args[0] for call in bridge.publish_asr.call_args_list],
                          ['你好', '退出语音助手'])
@@ -720,7 +720,7 @@ class DialogueTests(unittest.TestCase):
                 raise TtsNetworkError()
         trace, _ = self.dialogue(['你好', '退出语音助手'], [{'reply': '你好。', 'tasks': []}], on_prepare=prepare)
         self.assertEqual([event[1] for event in trace if event[0] == 'tts'],
-                         ['PrimeBuddy 已启动，你想做什么？', NETWORK_ERROR_PROMPT, '语音助手已退出。'])
+                         ['BotBuddy 已启动，你想做什么？', NETWORK_ERROR_PROMPT, '语音助手已退出。'])
 
     def test_skill_acknowledgement_network_failure_announces_after_task_cleanup(self):
         def prepare(text):
@@ -773,14 +773,14 @@ class DialogueTests(unittest.TestCase):
 
     def test_startup_tts_network_failure_uses_notice_then_waits_for_native(self):
         def prepare(text):
-            if text == 'PrimeBuddy 已启动，你想做什么？':
+            if text == 'BotBuddy 已启动，你想做什么？':
                 raise TtsNetworkError()
         trace, _ = self.dialogue(['退出语音助手'], [], on_prepare=prepare)
         self.assertLess(trace.index(('tts', NETWORK_ERROR_PROMPT)), trace.index(('waiting', 'waiting')))
 
     def test_sdk_tts_network_failure_uses_offline_notice_and_keeps_session(self):
         bridge = Mock()
-        bridge.topic, bridge.service_name = '/primebuddy/asr_result', '/primebuddy/PlayTts'
+        bridge.topic, bridge.service_name = '/botbuddy/asr_result', '/botbuddy/PlayTts'
         errors = [TtsNetworkError()]
         def drain(*_):
             if errors:
@@ -804,7 +804,7 @@ class DialogueTests(unittest.TestCase):
 
     def test_skill_network_result_stops_cloud_return_and_only_announces_once(self):
         result = {'status': 'failed', 'message': NETWORK_ERROR_PROMPT, 'error_code': 'network_unavailable'}
-        with patch('primebuddy.voice.session.continue_plan') as continuation:
+        with patch('botbuddy.voice.session.continue_plan') as continuation:
             trace, _ = self.dialogue(['播放小星星', '退出语音助手'], [self.proposal()], result=result)
         continuation.assert_not_called()
         self.assertEqual(sum(event == ('tts', NETWORK_ERROR_PROMPT) for event in trace), 1)
@@ -867,7 +867,7 @@ class DialogueTests(unittest.TestCase):
             self.dialogue(['你好'], [], trace=trace, on_asr=stopped.set,
                           on_prepare=prepared.append, cancel_check=check)
         self.assertFalse(any(event[0] == 'planning_history' for event in trace))
-        self.assertEqual(prepared, ['PrimeBuddy 已启动，你想做什么？'])
+        self.assertEqual(prepared, ['BotBuddy 已启动，你想做什么？'])
 
     def test_exit_signal_after_llm_prevents_cloud_tts_preparation(self):
         import threading
@@ -879,14 +879,14 @@ class DialogueTests(unittest.TestCase):
         with self.assertRaisesRegex(AudioError, '退出信号'):
             self.dialogue(['你好'], [{'reply': '你好，请说。', 'tasks': []}], on_plan=stopped.set,
                           on_prepare=prepared.append, cancel_check=check)
-        self.assertEqual(prepared, ['PrimeBuddy 已启动，你想做什么？'])
+        self.assertEqual(prepared, ['BotBuddy 已启动，你想做什么？'])
 
     def test_exit_signal_before_llm_entry_prevents_planning(self):
         import threading
         stopped = threading.Event()
         trace = []
         bridge = Mock()
-        bridge.topic, bridge.service_name = '/primebuddy/asr_result', '/primebuddy/PlayTts'
+        bridge.topic, bridge.service_name = '/botbuddy/asr_result', '/botbuddy/PlayTts'
         bridge.publish_asr.side_effect = lambda _: stopped.set()
         def check():
             if stopped.is_set():
@@ -898,7 +898,7 @@ class DialogueTests(unittest.TestCase):
     def test_startup_resource_check_precedes_any_tts(self):
         trace, _ = self.dialogue(['退出语音助手'], [])
         self.assertLess(trace.index(('prepare_voice', True)),
-                        trace.index(('tts', 'PrimeBuddy 已启动，你想做什么？')))
+                        trace.index(('tts', 'BotBuddy 已启动，你想做什么？')))
 
     def test_startup_unreleased_resource_blocks_all_tts(self):
         trace = []
@@ -919,7 +919,7 @@ class DialogueTests(unittest.TestCase):
             raise KeyboardInterrupt
         with self.assertRaises(KeyboardInterrupt):
             self.dialogue([], [], trace=trace, on_wait=waiting)
-        self.assertIn(('tts', 'PrimeBuddy 已启动，你想做什么？'), trace)
+        self.assertIn(('tts', 'BotBuddy 已启动，你想做什么？'), trace)
         self.assertFalse(any(event[0] in ('listen', 'asr') for event in trace))
 
     def test_cleanup_checkpoint_pumps_ros_without_asr_tts_or_new_tasks(self):
@@ -949,7 +949,7 @@ class DialogueTests(unittest.TestCase):
         self.assertEqual([event for event in trace if event[0] == 'cleanup_vad'],
                          [('cleanup_vad', 1), ('cleanup_vad', 3)])
         self.assertEqual([event for event in trace if event[0] == 'tts'],
-                         [('tts', 'PrimeBuddy 已启动，你想做什么？')])
+                         [('tts', 'BotBuddy 已启动，你想做什么？')])
         self.assertEqual([event for event in trace if event[0] == 'asr'], [('asr', '播放小星星')])
 
     def test_ordinary_vad_text_does_not_cancel_active_task(self):
@@ -981,7 +981,7 @@ class DialogueTests(unittest.TestCase):
     def test_sdk_bridge_receives_asr_and_closes_when_dialogue_exits(self):
         from unittest.mock import Mock
         bridge = Mock()
-        bridge.topic, bridge.service_name = '/primebuddy/asr_result', '/primebuddy/PlayTts'
+        bridge.topic, bridge.service_name = '/botbuddy/asr_result', '/botbuddy/PlayTts'
         self.dialogue(['你好', '退出语音助手'], [{'reply': '你好。', 'tasks': []}], bridge=bridge)
         self.assertEqual([call.args[0] for call in bridge.publish_asr.call_args_list], ['你好', '退出语音助手'])
         bridge.start.assert_called_once()
@@ -1032,7 +1032,7 @@ class DialogueTests(unittest.TestCase):
         for text in texts:
             with self.subTest(text=text):
                 bridge = Mock()
-                bridge.topic, bridge.service_name = '/primebuddy/asr_result', '/primebuddy/PlayTts'
+                bridge.topic, bridge.service_name = '/botbuddy/asr_result', '/botbuddy/PlayTts'
                 trace, calls = self.dialogue([text, '退出语音助手'],
                     [{'reply': '请继续。', 'tasks': []}], bridge=bridge)
                 self.assertEqual(calls[0].args[0], text)
@@ -1106,12 +1106,12 @@ class AsrTests(unittest.TestCase):
     def test_new_response_text_is_parsed(self):
         response = Mock()
         response.read.return_value = json.dumps({'output': {'text': '关闭天际线灯。'}})
-        with patch('primebuddy.providers.qianwen.asr.urllib.request.build_opener') as opener:
+        with patch('botbuddy.providers.qianwen.asr.urllib.request.build_opener') as opener:
             opener.return_value.open.return_value.__enter__.return_value = response
             self.assertEqual(recognize('audio', CONFIG, NEW_MODEL), '关闭天际线灯。')
 
     def test_model_permission_failure_does_not_fallback_or_retry(self):
-        with patch('primebuddy.providers.qianwen.asr.urllib.request.build_opener') as opener:
+        with patch('botbuddy.providers.qianwen.asr.urllib.request.build_opener') as opener:
             opener.return_value.open.side_effect = urllib.error.HTTPError('url', 403, 'blocked', {}, None)
             with self.assertRaises(AsrError):
                 recognize('audio', CONFIG, NEW_MODEL)

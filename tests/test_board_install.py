@@ -12,11 +12,11 @@ import unittest
 from unittest.mock import Mock, patch
 import zipfile
 
-from primebuddy.cli import onboarding
-from primebuddy.config.storage import SetupError
-from primebuddy.integrations.primebot import ssh_setup
-from primebuddy.integrations.primebot.robot_audio import ssh_options
-from primebuddy.tools import board_install, install
+from botbuddy.cli import onboarding
+from botbuddy.config.storage import SetupError
+from botbuddy.integrations.primebot import ssh_setup
+from botbuddy.integrations.primebot.robot_audio import ssh_options
+from botbuddy.tools import board_install, install
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -64,16 +64,16 @@ class BoardTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 ssh_setup.local_identity()
 
-    def test_remote_install_runs_before_local_writes_and_keeps_remote_home_relative(self):
+    def test_remote_install_resolves_default_home_on_destination_before_local_writes(self):
         identity = dict(series='T1', soc_index='0')
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ), \
                 patch.object(sys, 'argv', ['installer', '--shell-env-file', temp + '/result']), \
                 patch.object(board_install, 'installation_board', return_value=identity), \
                 patch.object(board_install, 'install_on_brain', return_value=0) as remote, \
                 patch.object(install, 'install') as local:
-            os.environ.pop('PRIMEBUDDY_HOME', None)
+            os.environ.pop('BOTBUDDY_HOME', None)
             self.assertEqual(install.main(), 0)
-            remote.assert_called_once_with(identity, Path('~/.primebuddy'), False)
+            remote.assert_called_once_with(identity, None, False)
             local.assert_not_called()
             self.assertFalse((Path(temp) / 'result').exists())
 
@@ -93,7 +93,7 @@ class BoardTests(unittest.TestCase):
                 with zipfile.ZipFile(kwargs['stdin']) as archive:
                     names = archive.namelist()
                 self.assertIn('main.py', names)
-                self.assertIn('src/primebuddy/tools/board_install.py', names)
+                self.assertIn('src/botbuddy/tools/board_install.py', names)
                 self.assertNotIn('cfg/providers.yaml', names)
                 self.assertFalse(any(name.startswith(('.git/', 'runtime/', 'data/', 'skills/')) for name in names))
                 code = shlex.split(args[-1])[-1]
@@ -122,7 +122,7 @@ class BoardTests(unittest.TestCase):
                 patch.object(board_install, 'remote_identity', side_effect=RuntimeError('身份不符')), \
                 patch.object(board_install.subprocess, 'run') as run:
             with self.assertRaises(RuntimeError):
-                board_install.install_on_brain({'series': 'T1'}, Path('~/.primebuddy'), True)
+                board_install.install_on_brain({'series': 'T1'}, Path('~/.botbuddy'), True)
         run.assert_not_called()
 
     def test_failed_remote_install_keeps_source_and_never_opens_completion_shell(self):
@@ -140,20 +140,20 @@ class BoardTests(unittest.TestCase):
                 patch.object(board_install.subprocess, 'run', side_effect=run) as calls, \
                 patch.object(board_install.sys.stdin, 'isatty', return_value=False), \
                 redirect_stdout(io.StringIO()) as output:
-            self.assertEqual(board_install.install_on_brain({'series': 'T1'}, Path('~/.primebuddy'), True), 1)
+            self.assertEqual(board_install.install_on_brain({'series': 'T1'}, Path('~/.botbuddy'), True), 1)
         self.assertEqual(calls.call_count, 2, '失败时不能清理远程安装源')
         self.assertIn('安装源保留', output.getvalue())
 
     def test_sourced_remote_installer_does_not_load_old_motion_board_environment(self):
         with tempfile.TemporaryDirectory() as temp:
             home = Path(temp)
-            old = home / '.primebuddy/bin'
+            old = home / '.botbuddy/bin'
             old.mkdir(parents=True)
             (old / 'env.sh').write_text('export OLD_MOTION_BOARD_ENV=1\n')
             fake = home / 'python'
             fake.write_text('#!/bin/sh\nexit 0\n')
             fake.chmod(0o700)
-            env = dict(os.environ, HOME=temp, PRIMEBUDDY_HOME=str(old.parent), ASSISTANT_PYTHON=str(fake))
+            env = dict(os.environ, HOME=temp, BOTBUDDY_HOME=str(old.parent), ASSISTANT_PYTHON=str(fake))
             env.pop('OLD_MOTION_BOARD_ENV', None)
             result = subprocess.run(['/bin/bash', '--noprofile', '--norc', '-c',
                                      'source "$1/scripts/install.sh" && test -z "${OLD_MOTION_BOARD_ENV:-}"',
@@ -162,7 +162,7 @@ class BoardTests(unittest.TestCase):
 
     def test_board_detection_loads_before_third_party_dependencies_are_installed(self):
         code = ('import sys; sys.path.insert(0, sys.argv[1]); '
-                'from primebuddy.tools import board_install; assert "yaml" not in sys.modules')
+                'from botbuddy.tools import board_install; assert "yaml" not in sys.modules')
         result = subprocess.run([sys.executable, '-S', '-c', code, str(ROOT / 'src')], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -251,7 +251,7 @@ class SSHSetupTests(unittest.TestCase):
             original = 'ServerAliveInterval 17\nHost example.org\n    User test-user\n'
             target.write_text(original)
             (directory / 'config').symlink_to(target)
-            key = directory / 'primebuddy' / 'id_ed25519'
+            key = directory / 'botbuddy' / 'id_ed25519'
             ssh_setup.configure_host(ssh_setup.MOTION_HOST, key)
             first = target.read_text()
             ssh_setup.configure_host(ssh_setup.MOTION_HOST, key)
@@ -278,12 +278,12 @@ class SSHSetupTests(unittest.TestCase):
             with patch.object(ssh_setup.subprocess, 'run', side_effect=run):
                 for _ in range(2):
                     ssh_setup.authorize_key(['ssh'], ssh_setup.MOTION_HOST, 'ssh-ed25519 AAAATESTKEY test')
-            self.assertEqual(path.read_text(), original + '\nrestrict ssh-ed25519 AAAATESTKEY primebuddy\n')
+            self.assertEqual(path.read_text(), original + '\nrestrict ssh-ed25519 AAAATESTKEY botbuddy\n')
             # 注释提到相同公钥不能误判为已有授权。
             path.write_text('# ssh-ed25519 AAAATESTKEY comment only\n')
             with patch.object(ssh_setup.subprocess, 'run', side_effect=run):
                 ssh_setup.authorize_key(['ssh'], ssh_setup.MOTION_HOST, 'ssh-ed25519 AAAATESTKEY')
-            self.assertIn('\nrestrict ssh-ed25519 AAAATESTKEY primebuddy\n', path.read_text())
+            self.assertIn('\nrestrict ssh-ed25519 AAAATESTKEY botbuddy\n', path.read_text())
 
     def test_managed_key_is_reused_and_verified_without_master_before_configuration(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(Path, 'home', return_value=Path(temp)), \
@@ -294,7 +294,7 @@ class SSHSetupTests(unittest.TestCase):
                 patch.object(ssh_setup, 'configure_host') as config:
             # 使用真实 ssh-keygen，但只生成临时测试密钥，不接触用户密钥。
             ssh_setup.setup_voice_ssh(ssh_setup.MOTION_HOST, {'series': 'T1'}, Mock())
-            key = Path(temp) / '.ssh/primebuddy/id_ed25519_run_10.1.1.100'
+            key = Path(temp) / '.ssh/botbuddy/id_ed25519_run_10.1.1.100'
             first = key.read_bytes()
             ssh_setup.setup_voice_ssh(ssh_setup.MOTION_HOST, {'series': 'T1'}, Mock())
             self.assertEqual(key.read_bytes(), first)
@@ -312,7 +312,7 @@ class SSHSetupTests(unittest.TestCase):
                 patch.object(ssh_setup, 'configure_host') as config:
             with self.assertRaisesRegex(RuntimeError, '专用密钥验证失败'):
                 ssh_setup.setup_voice_ssh(ssh_setup.MOTION_HOST, {'series': 'Q1'}, Mock())
-            self.assertTrue(list((Path(temp) / '.ssh/primebuddy').glob('id_ed25519_*')))
+            self.assertTrue(list((Path(temp) / '.ssh/botbuddy').glob('id_ed25519_*')))
         config.assert_not_called()
 
     def test_runtime_uses_default_host_records_but_preserves_legacy_records(self):
@@ -327,10 +327,10 @@ class RobotOnboardingTests(unittest.TestCase):
     def test_single_board_skips_ssh_and_only_queries_agent(self):
         with tempfile.TemporaryDirectory() as temp, \
                 patch.object(ssh_setup, 'local_identity', return_value={'series': 'Q1', 'soc_index': '0'}), \
-                patch('primebuddy.integrations.primebot.device.audio_host', return_value='local'), \
+                patch('botbuddy.integrations.primebot.device.audio_host', return_value='local'), \
                 patch.object(ssh_setup, 'setup_voice_ssh') as setup, \
-                patch('primebuddy.config.runtime.private_runtime', return_value=Path(temp)), \
-                patch('primebuddy.integrations.primebot.native_agent.agent_rpc',
+                patch('botbuddy.config.runtime.private_runtime', return_value=Path(temp)), \
+                patch('botbuddy.integrations.primebot.native_agent.agent_rpc',
                       return_value={'status': 'Running(12)', 'pid': 12}) as rpc:
             onboarding.configure_robot(Mock())
         setup.assert_not_called()
@@ -347,22 +347,22 @@ class RobotOnboardingTests(unittest.TestCase):
 
     def test_timeout_has_resume_instruction_without_dumping_command(self):
         with patch.object(ssh_setup, 'local_identity', return_value={'series': 'T1', 'soc_index': '1'}), \
-                patch('primebuddy.integrations.primebot.device.audio_host', return_value=ssh_setup.MOTION_HOST), \
+                patch('botbuddy.integrations.primebot.device.audio_host', return_value=ssh_setup.MOTION_HOST), \
                 patch.object(ssh_setup, 'setup_voice_ssh',
                              side_effect=subprocess.TimeoutExpired(['ssh', 'do-not-display-command'], 20)):
             with self.assertRaises(SetupError) as error:
                 onboarding.configure_robot(Mock())
-        self.assertIn('primebuddy onboard', str(error.exception))
+        self.assertIn('botbuddy onboard', str(error.exception))
         self.assertNotIn('do-not-display-command', str(error.exception))
 
     def test_dual_board_configures_connection_before_read_only_agent_check(self):
         events = []
         with tempfile.TemporaryDirectory() as temp, \
                 patch.object(ssh_setup, 'local_identity', return_value={'series': 'Q1', 'soc_index': '1'}), \
-                patch('primebuddy.integrations.primebot.device.audio_host', return_value=ssh_setup.MOTION_HOST), \
+                patch('botbuddy.integrations.primebot.device.audio_host', return_value=ssh_setup.MOTION_HOST), \
                 patch.object(ssh_setup, 'setup_voice_ssh', side_effect=lambda *a: events.append('ssh')), \
-                patch('primebuddy.config.runtime.private_runtime', return_value=Path(temp)), \
-                patch('primebuddy.integrations.primebot.native_agent.agent_rpc',
+                patch('botbuddy.config.runtime.private_runtime', return_value=Path(temp)), \
+                patch('botbuddy.integrations.primebot.native_agent.agent_rpc',
                       side_effect=lambda *a: events.append(a[1]) or {'status': 'Idel(-1)', 'pid': -1}):
             ui = Mock()
             onboarding.configure_robot(ui)

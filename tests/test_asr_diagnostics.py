@@ -5,10 +5,10 @@ import unittest
 import urllib.error
 from unittest.mock import Mock, patch
 
-from primebuddy.providers.qianwen.asr import AsrError, MODEL, NEW_MODEL, recognize
+from botbuddy.providers.qianwen.asr import AsrError, MODEL, NEW_MODEL, recognize
 
 
-MODULE = 'primebuddy.providers.qianwen.asr'
+MODULE = 'botbuddy.providers.qianwen.asr'
 SECRET = 'private-diagnostic-canary'
 CONFIG = {'endpoint': 'https://example.cn-beijing.maas.aliyuncs.com/' + SECRET,
           'api_key': SECRET, 'model': MODEL}

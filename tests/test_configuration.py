@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from primebuddy.config.storage import SetupError, config_path, read_config, write_config, write_json, skill_config
+from botbuddy.config.storage import SetupError, config_path, read_config, write_config, write_json, skill_config
 
 
 class ConfigTests(unittest.TestCase):
@@ -69,23 +69,23 @@ class ConfigTests(unittest.TestCase):
     def test_failed_atomic_write_keeps_original(self):
         write_config(self.path, {'keep': 1})
         before = self.path.read_bytes()
-        with patch('primebuddy.config.storage.os.replace', side_effect=OSError('test')):
+        with patch('botbuddy.config.storage.os.replace', side_effect=OSError('test')):
             with self.assertRaises(OSError):
                 write_config(self.path, {'keep': 2})
         self.assertEqual(self.path.read_bytes(), before)
         self.assertEqual(list(self.path.parent.iterdir()), [self.path])
 
     def test_runtime_directory_uses_configuration_or_environment_and_keeps_recovery_records(self):
-        source = Path(__file__).resolve().parents[1] / 'src/primebuddy/config/runtime.py'
+        source = Path(__file__).resolve().parents[1] / 'src/botbuddy/config/runtime.py'
         configured = Path(self.temp.name) / 'configured-runtime'
         override = Path(self.temp.name) / 'override-runtime'
-        with patch.dict(os.environ, PRIMEBUDDY_HOME=self.temp.name):
+        with patch.dict(os.environ, BOTBUDDY_HOME=self.temp.name):
             write_config(config_path('config.yaml'), {'runtime': {'directory': str(configured)}})
             for directory, environment in ((configured, None), (override, str(override))):
                 with self.subTest(directory=directory), patch.dict(os.environ):
-                    os.environ.pop('PRIMEBUDDY_RUNTIME', None)
+                    os.environ.pop('BOTBUDDY_RUNTIME', None)
                     if environment is not None:
-                        os.environ['PRIMEBUDDY_RUNTIME'] = environment
+                        os.environ['BOTBUDDY_RUNTIME'] = environment
                     directory.mkdir(mode=0o755)
                     directory.chmod(0o755)
                     record = directory / 'agent_mode.json'
@@ -99,15 +99,15 @@ class ConfigTests(unittest.TestCase):
                     self.assertEqual(record.read_bytes(), b'pending-recovery')
 
     def test_default_application_and_runtime_directories_share_one_home(self):
-        from primebuddy.config.storage import get_data_directory
-        from primebuddy.config.runtime import runtime_directory
+        from botbuddy.config.storage import get_data_directory
+        from botbuddy.config.runtime import runtime_directory
         with patch.dict(os.environ, HOME=self.temp.name):
-            os.environ.pop('PRIMEBUDDY_HOME', None)
-            os.environ.pop('PRIMEBUDDY_RUNTIME', None)
-            expected = Path(self.temp.name).resolve() / '.primebuddy'
+            os.environ.pop('BOTBUDDY_HOME', None)
+            os.environ.pop('BOTBUDDY_RUNTIME', None)
+            expected = Path(self.temp.name).resolve() / '.botbuddy'
             self.assertEqual(get_data_directory(), expected)
             self.assertEqual(runtime_directory(), expected / 'runtime')
-            os.environ['PRIMEBUDDY_HOME'] = str(Path(self.temp.name) / 'custom')
+            os.environ['BOTBUDDY_HOME'] = str(Path(self.temp.name) / 'custom')
             self.assertEqual(runtime_directory(), get_data_directory() / 'runtime')
 
     def test_json_configuration_is_not_loaded(self):
@@ -117,7 +117,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_old_yaml_configuration_migrates_without_changing_bytes_or_login_data(self):
         root = Path(self.temp.name)
-        with patch.dict(os.environ, PRIMEBUDDY_HOME=str(root)):
+        with patch.dict(os.environ, BOTBUDDY_HOME=str(root)):
             for filename in ('model.yaml', 'skills.yaml'):
                 old = root / filename
                 write_config(old, {'keep': '值'})
@@ -137,7 +137,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_new_configuration_wins_and_invalid_old_configuration_is_not_moved(self):
         root = Path(self.temp.name)
-        with patch.dict(os.environ, PRIMEBUDDY_HOME=str(root)):
+        with patch.dict(os.environ, BOTBUDDY_HOME=str(root)):
             old, target = root / 'model.yaml', root / 'cfg/model.yaml'
             write_config(old, {'keep': 'old'})
             write_config(target, {'keep': 'new'})
@@ -157,12 +157,12 @@ class ModelConfigurationTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        patcher = patch.dict(os.environ, PRIMEBUDDY_HOME=str(self.root))
+        patcher = patch.dict(os.environ, BOTBUDDY_HOME=str(self.root))
         patcher.start()
         self.addCleanup(patcher.stop)
 
     def test_setup_saves_role_selections_and_secrets_in_separate_files(self):
-        from primebuddy.config.models import configure_model, load_model
+        from botbuddy.config.models import configure_model, load_model
         ui = Mock()
         ui.choose.side_effect = [0, 1, 0, 0]
         ui.ask.side_effect = ['dashscope.aliyuncs.com', 'private-test-key']
@@ -189,7 +189,7 @@ class ModelConfigurationTests(unittest.TestCase):
                          ['qwen3-asr-flash', 'qwen-audio-3.1-asr-flash'])
 
     def test_yaml_catalog_controls_wizard_choices_and_runtime_validation(self):
-        from primebuddy.config.models import configure_model, load_model
+        from botbuddy.config.models import configure_model, load_model
         settings = {'api_host': 'dashscope.aliyuncs.com', 'api_key': 'private-test-key',
                     'models': {'asr': ['qwen-audio-3.1-asr-flash'],
                                'llm': ['fixture-chat', 'qwen-plus']}}
@@ -207,7 +207,7 @@ class ModelConfigurationTests(unittest.TestCase):
             load_model('asr', 'qwen3-asr-flash')
 
     def test_bad_model_catalog_is_rejected_without_displaying_credentials(self):
-        from primebuddy.config.models import provider_models
+        from botbuddy.config.models import provider_models
         for models in ('private-test-key', {'asr': []}, {'asr': 'private-test-key'},
                        {'asr': [123]}, {'asr': ['same', 'same']}, {'llm': ['bad:model']},
                        {'other': ['private-test-key']}):
@@ -217,7 +217,7 @@ class ModelConfigurationTests(unittest.TestCase):
                 self.assertNotIn('private-test-key', str(result.exception))
 
     def test_invalid_connection_retries_before_model_selection_and_cancel_keeps_files(self):
-        from primebuddy.config.models import configure_model
+        from botbuddy.config.models import configure_model
         write_config(config_path('providers.yaml'), {
             'qianwen': {'api_host': 'dashscope.aliyuncs.com', 'api_key': 'existing-test-key'}})
         write_config(config_path('config.yaml'), {'asr': {'model': 'qianwen:qwen3-asr-flash'}})
@@ -237,16 +237,16 @@ class ModelConfigurationTests(unittest.TestCase):
         import sys
         from types import ModuleType
         import wave
-        from primebuddy.config.models import load_model
-        from primebuddy.config.storage import load_app_config
-        from primebuddy.providers import PROVIDERS, transcribe_wav
-        from primebuddy.core.planner import plan
-        from primebuddy.voice.speech_cache import SpeechCache
+        from botbuddy.config.models import load_model
+        from botbuddy.config.storage import load_app_config
+        from botbuddy.providers import PROVIDERS, transcribe_wav
+        from botbuddy.core.planner import plan
+        from botbuddy.voice.speech_cache import SpeechCache
         sample = io.BytesIO()
         with wave.open(sample, 'wb') as audio:
             audio.setparams((1, 2, 24000, 0, 'NONE', 'not compressed'))
             audio.writeframes(b'\0\0' * 240)
-        adapter = ModuleType('primebuddy.providers.test_only')
+        adapter = ModuleType('botbuddy.providers.test_only')
         adapter.build_config = lambda role, model, settings, options: {
             'provider': 'test_only', 'role': role, 'model': model, 'endpoint': 'fixture://local', 'key_secret': settings['key_secret']}
         adapter.chat = Mock(return_value={'role': 'assistant', 'content': '测试'})
@@ -258,7 +258,7 @@ class ModelConfigurationTests(unittest.TestCase):
             'qianwen': {'api_host': 'dashscope.aliyuncs.com', 'api_key': 'asr-only'},
             'test_only': {'key_secret': 'other-only', 'models': {'llm': ['chat'], 'tts': ['voice-a', 'voice-b']}}})
         with patch.dict(PROVIDERS, test_only=adapter.__name__), patch.dict(sys.modules, {adapter.__name__: adapter}), \
-                patch('primebuddy.providers.qianwen.transcribe_wav', return_value='识别成功') as asr:
+                patch('botbuddy.providers.qianwen.transcribe_wav', return_value='识别成功') as asr:
             self.assertEqual(transcribe_wav(b'test'), '识别成功')
             self.assertEqual(asr.call_args.args[1]['api_key'], 'asr-only')
             registry = Mock(skills={}, catalog=Mock(return_value=[]))
@@ -274,7 +274,7 @@ class ModelConfigurationTests(unittest.TestCase):
             self.assertEqual(load_model('tts')['model'], 'voice-b')
 
     def test_invalid_selection_and_missing_provider_fail_without_exposing_credentials(self):
-        from primebuddy.config.models import load_model
+        from botbuddy.config.models import load_model
         write_config(config_path('providers.yaml'), {'qianwen': {'api_host': 'dashscope.aliyuncs.com', 'api_key': 'private-test-key'}})
         for reference in (None, 123, 'qwen3-asr-flash', 'unknown:model', 'qianwen:unknown', 'qianwen:qwen-plus'):
             with self.subTest(reference=reference):
@@ -288,8 +288,8 @@ class ModelConfigurationTests(unittest.TestCase):
             load_model('asr')
 
     def test_tts_options_do_not_override_provider_credentials_and_cache_tracks_voice(self):
-        from primebuddy.config.models import load_model
-        from primebuddy.voice.speech_cache import SpeechCache
+        from botbuddy.config.models import load_model
+        from botbuddy.voice.speech_cache import SpeechCache
         write_config(config_path('providers.yaml'), {
             'qianwen': {'api_host': 'dashscope.aliyuncs.com', 'api_key': 'provider-key'}})
         options = {'tts_voice': 'Cherry', 'api_key': 'role-key', 'api_host': 'invalid.example'}

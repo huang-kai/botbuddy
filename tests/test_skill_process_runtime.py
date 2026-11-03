@@ -12,11 +12,11 @@ import time
 import unittest
 from unittest.mock import patch
 
-from primebuddy.core.engine import CleanupUnconfirmed, Context, TurnInterrupted, execute, validate_plan
-from primebuddy.integrations.primebot.native_voice import NativeVoiceInput
-from primebuddy.skills.processes import run_process
-from primebuddy.skills import processes
-from primebuddy.skills.registry import Registry
+from botbuddy.core.engine import CleanupUnconfirmed, Context, TurnInterrupted, execute, validate_plan
+from botbuddy.integrations.primebot.native_voice import NativeVoiceInput
+from botbuddy.skills.processes import run_process
+from botbuddy.skills import processes
+from botbuddy.skills.registry import Registry
 
 
 CLI = '''import argparse
@@ -121,16 +121,16 @@ class SkillProcessRuntimeTests(unittest.TestCase):
             'timeout_seconds': 5}},
             'status': ['main.py', 'status', '--runtime', '{runtime}'],
             'recover': ['main.py', 'recover', '--runtime', '{runtime}']}}
-        environment = patch.dict(os.environ, PRIMEBUDDY_HOME=str(self.root / 'home'))
+        environment = patch.dict(os.environ, BOTBUDDY_HOME=str(self.root / 'home'))
         environment.start()
         self.addCleanup(environment.stop)
-        adapters = patch('primebuddy.skills.registry.load_adapters', return_value=adapter)
+        adapters = patch('botbuddy.skills.registry.load_adapters', return_value=adapter)
         adapters.start()
         self.addCleanup(adapters.stop)
         # 用真实监督器，只缩短测试用信号宽限，不改变宿主声明的硬运行期限。
         def supervise(command, **kwargs):
             return run_process(command, **kwargs, stop_grace=(1, .25, 1))
-        supervision = patch('primebuddy.skills.runtime.run_process', side_effect=supervise)
+        supervision = patch('botbuddy.skills.runtime.run_process', side_effect=supervise)
         supervision.start()
         self.addCleanup(supervision.stop)
         self.registry = Registry(self.skills)
@@ -152,7 +152,7 @@ class SkillProcessRuntimeTests(unittest.TestCase):
 
     def test_plain_cli_text_succeeds_without_native_import(self):
         announcements = []
-        with patch('primebuddy.skills.manager.load_entry') as load:
+        with patch('botbuddy.skills.manager.load_entry') as load:
             results = execute(self.plan(self.task()), self.registry, self.context, announce=announcements.append)
         load.assert_not_called()
         result = results['first']
@@ -161,7 +161,7 @@ class SkillProcessRuntimeTests(unittest.TestCase):
         self.assertNotEqual(int(result['message'].split(':')[1]), os.getpid())
         self.assertFalse((self.data / 'busy').exists())
         self.assertEqual(announcements[-1], result['message'])
-        self.assertNotIn('primebuddy', CLI)
+        self.assertNotIn('botbuddy', CLI)
 
     def test_small_stdout_and_stderr_are_visible_while_child_is_still_running(self):
         finish = self.root / 'finish-output'
@@ -196,9 +196,9 @@ class SkillProcessRuntimeTests(unittest.TestCase):
 
     def test_exclusive_foreground_application_must_exit_before_success_is_reported(self):
         (self.skill / 'cfg').mkdir()
-        (self.skill / 'cfg/pkg.yaml').write_text(json.dumps({'primebuddy': {
+        (self.skill / 'cfg/pkg.yaml').write_text(json.dumps({'botbuddy': {
             'mode': 'exclusive', 'cli': self.registry.skills['media-fixture']['adapter']}}))
-        with patch('primebuddy.skills.registry.load_adapters', return_value={}):
+        with patch('botbuddy.skills.registry.load_adapters', return_value={}):
             self.registry = Registry(self.skills)
         self.addCleanup(self.registry.close)
         announcements = []
@@ -285,7 +285,7 @@ class SkillProcessRuntimeTests(unittest.TestCase):
                     (self.data / 'cleanup-continue').touch()
         def supervise(command, **kwargs):
             return run_process(command, **kwargs, stop_grace=(6, .25, 1))
-        with patch('primebuddy.skills.runtime.run_process', side_effect=supervise), self.assertRaises(TurnInterrupted):
+        with patch('botbuddy.skills.runtime.run_process', side_effect=supervise), self.assertRaises(TurnInterrupted):
             execute(self.plan(self.task(mode='slow-wait'), self.task('second', after=['first'])),
                     self.registry, self.context, announce=announcements.append, checkpoint=checkpoint,
                     cleanup_checkpoint=cleanup_checkpoint)
@@ -364,7 +364,7 @@ class SkillProcessRuntimeTests(unittest.TestCase):
                 raise OSError('probe failed')
             return run_process(command, **kwargs)
         announcements = []
-        with patch('primebuddy.skills.runtime.run_process', side_effect=supervise), self.assertRaises(CleanupUnconfirmed):
+        with patch('botbuddy.skills.runtime.run_process', side_effect=supervise), self.assertRaises(CleanupUnconfirmed):
             execute(self.plan(self.task()), self.registry, self.context, announce=announcements.append)
         self.assertEqual(len(announcements), 1)
         self.assertTrue((self.data / 'cleanup-unconfirmed.json').exists())
@@ -406,7 +406,7 @@ class SkillProcessRuntimeTests(unittest.TestCase):
                 return run_process(command, **kwargs)
         child, child_cleaned = None, False
         try:
-            with patch('primebuddy.skills.runtime.run_process', side_effect=supervise), self.assertRaises(CleanupUnconfirmed):
+            with patch('botbuddy.skills.runtime.run_process', side_effect=supervise), self.assertRaises(CleanupUnconfirmed):
                 execute(self.plan(self.task(mode='linger')), self.registry, self.context, announce=lambda _: None)
             child = int((self.data / 'child.pid').read_text())
             self.assertIn(child, processes._process_table())

@@ -7,9 +7,9 @@ from types import SimpleNamespace as NS
 import unittest
 from unittest.mock import Mock, patch
 
-from primebuddy.integrations.primebot import agent_mode_rpc as rpc
-from primebuddy.integrations.primebot import native_agent
-from primebuddy.integrations.primebot.robot_audio import AudioError
+from botbuddy.integrations.primebot import agent_mode_rpc as rpc
+from botbuddy.integrations.primebot import native_agent
+from botbuddy.integrations.primebot.robot_audio import AudioError
 
 
 def response(mode='only_voice', *, code=0, status=1):

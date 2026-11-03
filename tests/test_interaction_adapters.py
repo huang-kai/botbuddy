@@ -7,10 +7,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from primebuddy.config.storage import SetupError
-from primebuddy.skills.adapters import adapt_metadata, load_adapters
-from primebuddy.skills.metadata import load_skill_metadata
-from primebuddy.skills.registry import Registry
+from botbuddy.config.storage import SetupError
+from botbuddy.skills.adapters import adapt_metadata, load_adapters
+from botbuddy.skills.metadata import load_skill_metadata
+from botbuddy.skills.registry import Registry
 
 
 class InteractionAdapterTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class InteractionAdapterTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name).resolve()
-        environment = patch.dict(os.environ, PRIMEBUDDY_HOME=str(self.root / 'home'))
+        environment = patch.dict(os.environ, BOTBUDDY_HOME=str(self.root / 'home'))
         environment.start()
         self.addCleanup(environment.stop)
         self.skill = self.root / 'skills/voice-game'
@@ -36,12 +36,12 @@ class InteractionAdapterTests(unittest.TestCase):
             'preflight': ['main.py', 'check-play']}}
 
     def metadata(self, **options):
-        (self.skill / 'cfg/pkg.yaml').write_text(json.dumps({'primebuddy': options}))
+        (self.skill / 'cfg/pkg.yaml').write_text(json.dumps({'botbuddy': options}))
         return load_skill_metadata(self.skill)
 
     def test_game_uses_a_supervised_foreground_hosted_cli_and_hides_raw_script(self):
         self.metadata(mode='exclusive', cli=self.cli)
-        with patch('primebuddy.skills.registry.load_adapters', return_value={}):
+        with patch('botbuddy.skills.registry.load_adapters', return_value={}):
             registry = Registry(self.skill.parent)
         action = registry.skills['voice-game']['actions']['play']
         self.assertEqual(action['interaction'], 'exclusive')
@@ -102,9 +102,9 @@ class InteractionAdapterTests(unittest.TestCase):
                 self.metadata(cli=cli)
 
     def test_installer_uses_the_package_configuration_command(self):
-        from primebuddy.skills.manager import run_setup
+        from botbuddy.skills.manager import run_setup
         data = self.metadata(mode='exclusive', cli=self.cli)
-        with patch('primebuddy.skills.manager.subprocess.call', return_value=0) as configure:
+        with patch('botbuddy.skills.manager.subprocess.call', return_value=0) as configure:
             self.assertEqual(run_setup(self.skill, data, None), {})
         command = configure.call_args.args[0]
         self.assertEqual(command[1], str(self.skill / 'main.py'))
@@ -124,7 +124,7 @@ class InteractionAdapterTests(unittest.TestCase):
             data = self.metadata(mode='exclusive', cli=cli)
             with self.subTest(value=value), self.assertRaisesRegex(SetupError, 'interaction'):
                 adapt_metadata(data, self.skill, {})
-            (self.skill / 'cfg/pkg.yaml').write_text(json.dumps({'primebuddy': {
+            (self.skill / 'cfg/pkg.yaml').write_text(json.dumps({'botbuddy': {
                 'entrypoint': 'main.py', 'actions': {'play': {'parameters': {}, 'interaction': value}}}}))
             with self.subTest(native=value), self.assertRaisesRegex(SetupError, 'interaction'):
                 load_skill_metadata(self.skill)

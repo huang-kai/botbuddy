@@ -17,7 +17,7 @@ class InstallBootstrapTests(unittest.TestCase):
 import sys
 from unittest.mock import patch
 sys.path.insert(0, sys.argv[1])
-from primebuddy.tools import install
+from botbuddy.tools import install
 assert 'yaml' not in sys.modules
 def dependencies(stage):
     assert 'yaml' not in sys.modules
@@ -32,7 +32,7 @@ print('BOOTSTRAP_OK')
         with tempfile.TemporaryDirectory() as temporary:
             result = subprocess.run([sys.executable, '-S', '-c', script, str(ROOT / 'src'),
                                      str(Path(yaml.__file__).resolve().parent.parent), temporary + '/app'],
-                                    env=dict(os.environ, HOME=temporary, PRIMEBUDDY_LOG_DIR=temporary + '/logs'),
+                                    env=dict(os.environ, HOME=temporary, BOTBUDDY_LOG_DIR=temporary + '/logs'),
                                     capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('BOOTSTRAP_OK', result.stdout)
@@ -42,7 +42,7 @@ print('BOOTSTRAP_OK')
 import sys
 from unittest.mock import patch
 sys.path.insert(0, sys.argv[1])
-from primebuddy.tools import install
+from botbuddy.tools import install
 with patch.object(install, 'prepare_dependencies') as prepare:
     try:
         install.install(Path(sys.argv[2]))

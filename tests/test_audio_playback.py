@@ -3,16 +3,16 @@ from pathlib import Path
 import threading
 import unittest
 from unittest.mock import patch
-from primebuddy.voice.audio import AudioOutput
-from primebuddy.core.engine import CleanupUnconfirmed
-from primebuddy.integrations.primebot.robot_audio import AudioError
+from botbuddy.voice.audio import AudioOutput
+from botbuddy.core.engine import CleanupUnconfirmed
+from botbuddy.integrations.primebot.robot_audio import AudioError
 from types import SimpleNamespace
 from unittest.mock import Mock
-from primebuddy.integrations.primebot.native_media import NativeMedia, matched_publishers
+from botbuddy.integrations.primebot.native_media import NativeMedia, matched_publishers
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace as NS
 import wave
-from primebuddy.integrations.primebot import prepare_audio_process
+from botbuddy.integrations.primebot import prepare_audio_process
 
 
 class AudioOutputTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class AudioOutputTests(unittest.TestCase):
             def close(self): events.append('node_close')
         class Prepared:
             def __init__(self, *args, **kwargs):
-                self.path, self.seconds, self.limited = '/tmp/primebuddy-audio-test/audio.wav', 60, True
+                self.path, self.seconds, self.limited = '/tmp/botbuddy-audio-test/audio.wav', 60, True
                 events.append('prepare')
             def wait_ready(self, checkpoint): checkpoint()
             def close(self): events.append('file_cleanup')
@@ -47,7 +47,7 @@ class AudioOutputTests(unittest.TestCase):
         self.output = AudioOutput(Path('/unused'), lambda: None)
         self.addCleanup(self.output.close)
         for name, value in [('RobotAudio', Robot), ('PreparedAudio', Prepared), ('NativeMedia', Media)]:
-            patcher = patch('primebuddy.voice.audio.' + name, value)
+            patcher = patch('botbuddy.voice.audio.' + name, value)
             patcher.start(); self.addCleanup(patcher.stop)
 
     def test_callbacks_and_cleanup_follow_confirmed_playback(self):
@@ -180,10 +180,10 @@ class AudioOutputTests(unittest.TestCase):
             def host_checkpoint():
                 now[0] += host_wait
             with self.subTest(host_wait=host_wait), \
-                    patch('primebuddy.voice.audio.RobotAudio', BufferedRobot), \
-                    patch('primebuddy.voice.audio.PreparedAudio', Prepared), \
-                    patch('primebuddy.voice.audio.NativeMedia', media), \
-                    patch('primebuddy.integrations.primebot.native_media.time.monotonic', side_effect=lambda: now[0]):
+                    patch('botbuddy.voice.audio.RobotAudio', BufferedRobot), \
+                    patch('botbuddy.voice.audio.PreparedAudio', Prepared), \
+                    patch('botbuddy.voice.audio.NativeMedia', media), \
+                    patch('botbuddy.integrations.primebot.native_media.time.monotonic', side_effect=lambda: now[0]):
                 output = AudioOutput(Path('/unused'), lambda: None)
                 try:
                     if host_wait:
@@ -239,7 +239,7 @@ class NativeMediaTests(unittest.TestCase):
         p.robot.spin.side_effect = lambda **kwargs: order.append('spin')
         p.call = Mock(side_effect=lambda *args: (order.append('play'),
             SimpleNamespace(tts_resp=SimpleNamespace(is_success=True)))[1])
-        with patch('primebuddy.integrations.primebot.native_media.matched_publishers', side_effect=[0, 0, 1]):
+        with patch('botbuddy.integrations.primebot.native_media.matched_publishers', side_effect=[0, 0, 1]):
             p.start('/tmp/test/audio.wav', 1)
         self.assertEqual(order, ['spin', 'spin', 'play'])
 
@@ -247,8 +247,8 @@ class NativeMediaTests(unittest.TestCase):
         p = self.player()
         p.submitted = False
         p.robot, p.call = Mock(), Mock()
-        with patch('primebuddy.integrations.primebot.native_media.matched_publishers', return_value=0),\
-                patch('primebuddy.integrations.primebot.native_media.time.monotonic', side_effect=[0, 7]):
+        with patch('botbuddy.integrations.primebot.native_media.matched_publishers', return_value=0),\
+                patch('botbuddy.integrations.primebot.native_media.time.monotonic', side_effect=[0, 7]):
             with self.assertRaisesRegex(AudioError, '尚未匹配'):
                 p.start('/tmp/test/audio.wav', 1)
         self.assertFalse(p.submitted)
@@ -277,7 +277,7 @@ class NativeMediaTests(unittest.TestCase):
 
     def event(self, player, status, trace='owned', at=2):
         from unittest.mock import patch
-        with patch('primebuddy.integrations.primebot.native_media.time.monotonic', return_value=at):
+        with patch('botbuddy.integrations.primebot.native_media.time.monotonic', return_value=at):
             player.on_status(SimpleNamespace(trace_id=trace, tts_status=SimpleNamespace(value=status)))
 
     def test_foreign_end_cannot_finish_own_playback(self):
@@ -341,7 +341,7 @@ class NativeMediaTests(unittest.TestCase):
             p.stop_client, p.robot = object(), Mock()
             p.events = [(2, status)]
             p.call = Mock()
-            with patch('primebuddy.integrations.primebot.native_media.time.monotonic', side_effect=[0, 0, 6]):
+            with patch('botbuddy.integrations.primebot.native_media.time.monotonic', side_effect=[0, 0, 6]):
                 with self.assertRaisesRegex(AudioError, '停止未确认'):
                     p.stop()
             self.assertTrue(p.submitted)
